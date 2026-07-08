@@ -227,7 +227,9 @@ class Command(BaseCommand):
             )
             if created:
                 user.set_password(DEMO_PASSWORD)
-                user.is_staff = role == User.Role.MANAGER
+                is_manager = role == User.Role.MANAGER
+                user.is_staff = is_manager
+                user.is_superuser = is_manager
                 user.save()
             users[username] = user
         return users
