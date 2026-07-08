@@ -19,7 +19,7 @@ from .models import (
     Recipe,
     StockRequest,
 )
-from .permissions import IsManager
+from .permissions import IsHeadChefOrManager, IsManager
 from .serializers import (
     BatchCompleteSerializer,
     BatchProductionSerializer,
@@ -74,10 +74,7 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                     entry["earliest"] = item.scheduled_time
 
         for ingredient_id, data in required_by_ingredient.items():
-            stock, _ = KitchenStock.objects.get_or_create(
-                ingredient_id=ingredient_id,
-                defaults={"unit": data["ingredient"].default_unit},
-            )
+            stock, _ = KitchenStock.objects.get_or_create(ingredient_id=ingredient_id)
             shortfall = data["qty"] - stock.qty_on_hand
             if shortfall <= 0:
                 continue
@@ -92,7 +89,7 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                     urgency = StockRequest.Urgency.HIGH
 
             req = StockRequest.objects.create(
-                request_code=next_code(StockRequest, "request_code", "KSR"),
+                request_code=next_code("KSR"),
                 ingredient=data["ingredient"],
                 qty_requested=shortfall,
                 urgency=urgency,
@@ -124,7 +121,7 @@ class ProductionPlanItemViewSet(viewsets.ModelViewSet):
 
         batch = BatchProduction.objects.create(
             plan_item=item,
-            batch_code=next_code(BatchProduction, "batch_code", "BP"),
+            batch_code=next_code("BP"),
             planned_qty=item.planned_qty,
             produced_by=request.user,
         )
@@ -151,16 +148,38 @@ class BatchProductionViewSet(viewsets.ReadOnlyModelViewSet):
         scale = data["actual_qty"] / recipe.yield_qty
 
         with transaction.atomic():
-            for ri in recipe.ingredients.select_related("ingredient").select_for_update():
+            # Lock every ingredient's stock row up front and check there's enough
+            # before writing anything. A kitchen can't cook with ingredients it
+            # doesn't have — completing the batch anyway just hides the shortage
+            # behind a confusing negative number instead of surfacing it.
+            planned_deductions = []
+            shortfalls = []
+            for ri in recipe.ingredients.select_related("ingredient"):
                 deduct_qty = scale * ri.qty
+                stock, _ = KitchenStock.objects.select_for_update().get_or_create(ingredient=ri.ingredient)
+                if stock.qty_on_hand < deduct_qty:
+                    shortfalls.append(
+                        f"{ri.ingredient.name}: need {deduct_qty}{ri.ingredient.default_unit}, "
+                        f"have {stock.qty_on_hand}{ri.ingredient.default_unit}"
+                    )
+                planned_deductions.append((ri, stock, deduct_qty))
+
+            if shortfalls:
+                return Response(
+                    {
+                        "detail": "Not enough kitchen stock to complete this batch. Raise a stock request first.",
+                        "shortfalls": shortfalls,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            for ri, stock, deduct_qty in planned_deductions:
                 IngredientDeduction.objects.create(
                     batch=batch,
                     ingredient=ri.ingredient,
                     theoretical_qty=ri.qty,
                     actual_qty=deduct_qty,
-                )
-                stock, _ = KitchenStock.objects.select_for_update().get_or_create(
-                    ingredient=ri.ingredient, defaults={"unit": ri.ingredient.default_unit}
+                    unit_cost_at_time=ri.ingredient.unit_cost,
                 )
                 stock.qty_on_hand = stock.qty_on_hand - deduct_qty
                 stock.save(update_fields=["qty_on_hand", "updated_at"])
@@ -185,7 +204,7 @@ class StockRequestViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(
-            request_code=next_code(StockRequest, "request_code", "KSR"),
+            request_code=next_code("KSR"),
             raised_by=self.request.user,
         )
 
@@ -196,56 +215,85 @@ class StockRequestViewSet(viewsets.ModelViewSet):
         stock_request.resolved_at = timezone.now()
         stock_request.save(update_fields=["status", "resolved_at"])
 
-        stock, _ = KitchenStock.objects.get_or_create(
-            ingredient=stock_request.ingredient,
-            defaults={"unit": stock_request.ingredient.default_unit},
-        )
+        stock, _ = KitchenStock.objects.get_or_create(ingredient=stock_request.ingredient)
         stock.qty_on_hand += stock_request.qty_requested
         stock.save(update_fields=["qty_on_hand", "updated_at"])
 
         return Response(StockRequestSerializer(stock_request).data)
 
 
+def _compute_recipe_costing(recipe):
+    theoretical_cost = sum((ri.qty * ri.ingredient.unit_cost for ri in recipe.ingredients.all()), Decimal("0"))
+    theoretical_cost_per_unit = theoretical_cost / recipe.yield_qty if recipe.yield_qty else Decimal("0")
+    theoretical_fc_pct = (
+        (theoretical_cost_per_unit / recipe.selling_price * 100) if recipe.selling_price else None
+    )
+
+    completed_batches = BatchProduction.objects.filter(
+        plan_item__recipe=recipe, status=BatchProduction.Status.COMPLETE
+    )
+    actual_cost_total = Decimal("0")
+    actual_qty_total = Decimal("0")
+    for batch in completed_batches.prefetch_related("deductions"):
+        for d in batch.deductions.all():
+            actual_cost_total += d.actual_qty * d.unit_cost_at_time
+        actual_qty_total += batch.actual_qty or Decimal("0")
+
+    actual_cost_per_unit = (actual_cost_total / actual_qty_total) if actual_qty_total else None
+    actual_fc_pct = (
+        (actual_cost_per_unit / recipe.selling_price * 100)
+        if actual_cost_per_unit is not None and recipe.selling_price
+        else None
+    )
+
+    return {
+        "recipe_id": recipe.id,
+        "recipe_name": recipe.name,
+        "theoretical_cost_per_unit": round(theoretical_cost_per_unit, 2),
+        "actual_cost_per_unit": round(actual_cost_per_unit, 2) if actual_cost_per_unit is not None else None,
+        "theoretical_food_cost_pct": round(theoretical_fc_pct, 1) if theoretical_fc_pct is not None else None,
+        "actual_food_cost_pct": round(actual_fc_pct, 1) if actual_fc_pct is not None else None,
+        "target_food_cost_pct": recipe.target_food_cost_pct,
+    }
+
+
+def _costing_status(row):
+    if row["actual_food_cost_pct"] is None or row["target_food_cost_pct"] is None:
+        return "no_data"
+    actual = Decimal(str(row["actual_food_cost_pct"]))
+    target = Decimal(str(row["target_food_cost_pct"]))
+    if actual > target + 2:
+        return "over_target"
+    if actual > target:
+        return "watch"
+    return "on_target"
+
+
 class CostingView(APIView):
     permission_classes = [IsManager]
 
     def get(self, request):
+        recipes = Recipe.objects.prefetch_related("ingredients__ingredient")
+        return Response([_compute_recipe_costing(r) for r in recipes])
+
+
+class CostingSummaryView(APIView):
+    """Head Chef gets a trend signal per recipe — no cost figures or margins,
+    just whether it's running over target — so portioning can be corrected on
+    the line instead of discovered later in a Manager-only report."""
+
+    permission_classes = [IsHeadChefOrManager]
+
+    def get(self, request):
+        recipes = Recipe.objects.prefetch_related("ingredients__ingredient")
         results = []
-        for recipe in Recipe.objects.prefetch_related("ingredients__ingredient"):
-            theoretical_cost = sum(
-                (ri.qty * ri.ingredient.unit_cost for ri in recipe.ingredients.all()), Decimal("0")
-            )
-            theoretical_cost_per_unit = theoretical_cost / recipe.yield_qty if recipe.yield_qty else Decimal("0")
-            theoretical_fc_pct = (
-                (theoretical_cost_per_unit / recipe.selling_price * 100) if recipe.selling_price else None
-            )
-
-            completed_batches = BatchProduction.objects.filter(
-                plan_item__recipe=recipe, status=BatchProduction.Status.COMPLETE
-            )
-            actual_cost_total = Decimal("0")
-            actual_qty_total = Decimal("0")
-            for batch in completed_batches.prefetch_related("deductions__ingredient"):
-                for d in batch.deductions.all():
-                    actual_cost_total += d.actual_qty * d.ingredient.unit_cost
-                actual_qty_total += batch.actual_qty or Decimal("0")
-
-            actual_cost_per_unit = (actual_cost_total / actual_qty_total) if actual_qty_total else None
-            actual_fc_pct = (
-                (actual_cost_per_unit / recipe.selling_price * 100)
-                if actual_cost_per_unit is not None and recipe.selling_price
-                else None
-            )
-
+        for recipe in recipes:
+            row = _compute_recipe_costing(recipe)
             results.append(
                 {
-                    "recipe_id": recipe.id,
-                    "recipe_name": recipe.name,
-                    "theoretical_cost_per_unit": round(theoretical_cost_per_unit, 2),
-                    "actual_cost_per_unit": round(actual_cost_per_unit, 2) if actual_cost_per_unit is not None else None,
-                    "theoretical_food_cost_pct": round(theoretical_fc_pct, 1) if theoretical_fc_pct is not None else None,
-                    "actual_food_cost_pct": round(actual_fc_pct, 1) if actual_fc_pct is not None else None,
-                    "target_food_cost_pct": recipe.target_food_cost_pct,
+                    "recipe_id": row["recipe_id"],
+                    "recipe_name": row["recipe_name"],
+                    "status": _costing_status(row),
                 }
             )
         return Response(results)
@@ -278,8 +326,8 @@ class DashboardView(APIView):
         if is_manager:
             deductions_today = IngredientDeduction.objects.filter(
                 batch__plan_item__plan__service_date=today
-            ).select_related("ingredient", "batch__plan_item__recipe")
-            actual_cost_total = sum((d.actual_qty * d.ingredient.unit_cost for d in deductions_today), Decimal("0"))
+            ).select_related("batch__plan_item__recipe")
+            actual_cost_total = sum((d.actual_qty * d.unit_cost_at_time for d in deductions_today), Decimal("0"))
             revenue_total = sum(
                 (b.actual_qty * b.plan_item.recipe.selling_price for b in batches_today.select_related("plan_item__recipe")),
                 Decimal("0"),

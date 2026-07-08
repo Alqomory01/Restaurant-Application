@@ -21,7 +21,8 @@ export interface RecipeIngredient {
   ingredient: number;
   ingredient_name?: string;
   qty: string;
-  unit: string;
+  /** Read-only, always the ingredient's own default_unit — see backend model note. */
+  unit?: string;
   is_optional: boolean;
 }
 
@@ -99,6 +100,7 @@ export interface IngredientDeduction {
   ingredient_name: string;
   theoretical_qty: string;
   actual_qty: string;
+  unit_cost_at_time: string;
 }
 
 export interface BatchProduction {
@@ -152,4 +154,17 @@ export interface CostingRow {
   theoretical_food_cost_pct: string | null;
   actual_food_cost_pct: string | null;
   target_food_cost_pct: string | null;
+}
+
+export type CostingStatus = "on_target" | "watch" | "over_target" | "no_data";
+
+export interface CostingSummaryRow {
+  recipe_id: number;
+  recipe_name: string;
+  status: CostingStatus;
+}
+
+export interface InsufficientStockError {
+  detail: string;
+  shortfalls: string[];
 }

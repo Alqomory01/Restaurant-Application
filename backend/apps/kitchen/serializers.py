@@ -24,6 +24,9 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     ingredient_name = serializers.CharField(source="ingredient.name", read_only=True)
+    # Read-only and always sourced from the ingredient itself — see the note
+    # on RecipeIngredient.qty in models.py for why this isn't a stored field.
+    unit = serializers.CharField(source="ingredient.default_unit", read_only=True)
 
     class Meta:
         model = RecipeIngredient
@@ -85,6 +88,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 class KitchenStockSerializer(serializers.ModelSerializer):
     ingredient_name = serializers.CharField(source="ingredient.name", read_only=True)
+    unit = serializers.CharField(source="ingredient.default_unit", read_only=True)
     below_threshold = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -143,7 +147,7 @@ class IngredientDeductionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = IngredientDeduction
-        fields = ["id", "ingredient", "ingredient_name", "theoretical_qty", "actual_qty"]
+        fields = ["id", "ingredient", "ingredient_name", "theoretical_qty", "actual_qty", "unit_cost_at_time"]
 
 
 class BatchProductionSerializer(serializers.ModelSerializer):

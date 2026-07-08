@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { BatchProduction, QualityCheck } from "@/lib/types";
+import type { BatchProduction, InsufficientStockError, QualityCheck } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
 const qualityTone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
@@ -93,10 +94,12 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shortfalls, setShortfalls] = useState<string[] | null>(null);
 
   async function handleComplete() {
     setSubmitting(true);
     setError(null);
+    setShortfalls(null);
     try {
       await api.post(`/kitchen/batches/${batch.id}/complete/`, {
         actual_qty: actualQty,
@@ -105,7 +108,13 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
       });
       onComplete();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to complete batch.");
+      if (err instanceof ApiError && err.status === 409) {
+        const body = err.body as InsufficientStockError;
+        setError(body.detail);
+        setShortfalls(body.shortfalls ?? []);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Failed to complete batch.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -153,7 +162,23 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
       <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-800">
         On confirmation, ingredients will be deducted from kitchen stock in one atomic transaction.
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && (
+        <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+          <p className="font-semibold">{error}</p>
+          {shortfalls && shortfalls.length > 0 && (
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+              {shortfalls.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+          )}
+          {shortfalls && shortfalls.length > 0 && (
+            <Link href="/requests" className="mt-2 inline-block font-semibold text-red-800 hover:underline">
+              Raise a stock request →
+            </Link>
+          )}
+        </div>
+      )}
       <div className="mt-3 flex justify-end">
         <Button variant="primary" onClick={handleComplete} disabled={submitting}>
           {submitting ? "Confirming…" : "Confirm batch complete"}

@@ -7,6 +7,7 @@ from django.utils import timezone
 from apps.accounts.models import Branch, User
 from apps.kitchen.models import (
     BatchProduction,
+    CodeSequence,
     CookingStep,
     Ingredient,
     IngredientDeduction,
@@ -90,12 +91,12 @@ RECIPES = [
         "prep_time_minutes": 45, "selling_price": Decimal("2000"), "target_food_cost_pct": Decimal("28"),
         "allergen_info": "none", "status": Recipe.Status.ACTIVE,
         "ingredients": [
-            ("Long grain rice", Decimal("5"), "kg", False),
-            ("Tomato puree", Decimal("2"), "L", False),
-            ("Palm oil", Decimal("0.5"), "L", False),
-            ("Seasoning cubes", Decimal("4"), "units", False),
-            ("Chicken stock", Decimal("1"), "L", False),
-            ("Scotch bonnet", Decimal("0.3"), "kg", True),
+            ("Long grain rice", Decimal("5"), False),
+            ("Tomato puree", Decimal("2"), False),
+            ("Palm oil", Decimal("0.5"), False),
+            ("Seasoning cubes", Decimal("4"), False),
+            ("Chicken stock", Decimal("1"), False),
+            ("Scotch bonnet", Decimal("0.3"), True),
         ],
         "steps": [
             (1, "Wash and soak the rice", "Rinse 5kg of long grain rice until water runs clear. Soak for 20 minutes.", 20, None),
@@ -109,11 +110,11 @@ RECIPES = [
         "prep_time_minutes": 40, "selling_price": Decimal("3500"), "target_food_cost_pct": Decimal("32"),
         "allergen_info": "none", "status": Recipe.Status.ACTIVE,
         "ingredients": [
-            ("Whole chicken", Decimal("0.5"), "kg", False),
-            ("Seasoning mix", Decimal("15"), "g", False),
-            ("Cooking oil", Decimal("10"), "ml", False),
-            ("Garlic paste", Decimal("5"), "g", False),
-            ("Ginger", Decimal("5"), "g", False),
+            ("Whole chicken", Decimal("0.5"), False),
+            ("Seasoning mix", Decimal("15"), False),
+            ("Cooking oil", Decimal("10"), False),
+            ("Garlic paste", Decimal("5"), False),
+            ("Ginger", Decimal("5"), False),
         ],
         "steps": [
             (1, "Marinate chicken", "Mix seasoning, garlic paste and ginger. Coat chicken pieces thoroughly. Marinate for minimum 30 minutes, preferably overnight.", 30, None),
@@ -127,10 +128,10 @@ RECIPES = [
         "prep_time_minutes": 35, "selling_price": Decimal("2500"), "target_food_cost_pct": Decimal("30"),
         "allergen_info": "none", "status": Recipe.Status.ACTIVE,
         "ingredients": [
-            ("Beef (boneless)", Decimal("0.4"), "kg", False),
-            ("Suya spice mix", Decimal("25"), "g", False),
-            ("Onions", Decimal("0.2"), "kg", False),
-            ("Groundnut oil", Decimal("15"), "ml", False),
+            ("Beef (boneless)", Decimal("0.4"), False),
+            ("Suya spice mix", Decimal("25"), False),
+            ("Onions", Decimal("0.2"), False),
+            ("Groundnut oil", Decimal("15"), False),
         ],
         "steps": [
             (1, "Slice and skewer beef", "Slice beef thinly against the grain into 3cm strips. Thread onto skewers.", 10, None),
@@ -144,12 +145,12 @@ RECIPES = [
         "prep_time_minutes": 60, "selling_price": Decimal("2800"), "target_food_cost_pct": Decimal("26"),
         "allergen_info": "none", "status": Recipe.Status.ACTIVE,
         "ingredients": [
-            ("Ground melon seed", Decimal("0.8"), "kg", False),
-            ("Assorted meat", Decimal("1"), "kg", False),
-            ("Palm oil", Decimal("0.4"), "L", False),
-            ("Stockfish", Decimal("0.3"), "kg", False),
-            ("Crayfish", Decimal("0.1"), "kg", False),
-            ("Seasoning cubes", Decimal("2"), "units", False),
+            ("Ground melon seed", Decimal("0.8"), False),
+            ("Assorted meat", Decimal("1"), False),
+            ("Palm oil", Decimal("0.4"), False),
+            ("Stockfish", Decimal("0.3"), False),
+            ("Crayfish", Decimal("0.1"), False),
+            ("Seasoning cubes", Decimal("2"), False),
         ],
         "steps": [
             (1, "Fry ground melon seed", "Heat palm oil in pot. Add ground melon seed and fry on medium heat, stirring constantly for 10 minutes until golden brown.", 10, 160),
@@ -163,9 +164,9 @@ RECIPES = [
         "prep_time_minutes": 15, "selling_price": Decimal("800"), "target_food_cost_pct": Decimal("25"),
         "allergen_info": "none", "status": Recipe.Status.ACTIVE,
         "ingredients": [
-            ("Ripe plantain", Decimal("1"), "units", False),
-            ("Cooking oil", Decimal("100"), "ml", False),
-            ("Salt", Decimal("0.01"), "kg", True),
+            ("Ripe plantain", Decimal("1"), False),
+            ("Cooking oil", Decimal("100"), False),
+            ("Salt", Decimal("0.01"), True),
         ],
         "steps": [
             (1, "Peel and slice plantain", "Peel ripe plantains. Slice diagonally at 1.5cm thickness for maximum caramelisation.", 3, None),
@@ -179,12 +180,12 @@ RECIPES = [
         "prep_time_minutes": 10, "selling_price": Decimal("1500"), "target_food_cost_pct": Decimal("20"),
         "allergen_info": "none", "status": Recipe.Status.ACTIVE,
         "ingredients": [
-            ("Fanta Orange", Decimal("8"), "bottles", False),
-            ("Grenadine syrup", Decimal("200"), "ml", False),
-            ("Ribena", Decimal("100"), "ml", False),
-            ("Cucumber", Decimal("2"), "units", False),
-            ("Lemon", Decimal("3"), "units", False),
-            ("Ice", Decimal("2"), "kg", False),
+            ("Fanta Orange", Decimal("8"), False),
+            ("Grenadine syrup", Decimal("200"), False),
+            ("Ribena", Decimal("100"), False),
+            ("Cucumber", Decimal("2"), False),
+            ("Lemon", Decimal("3"), False),
+            ("Ice", Decimal("2"), False),
         ],
         "steps": [
             (1, "Chill all ingredients", "Ensure all drinks are well chilled. Slice cucumber and lemon thinly for garnish.", 5, 4),
@@ -207,6 +208,7 @@ class Command(BaseCommand):
         recipes = self._seed_recipes(ingredients)
         self._seed_production_plan(recipes, users)
         self._seed_stock_requests(ingredients, users)
+        self._seed_code_sequences()
 
         self.stdout.write(self.style.SUCCESS("Kitchen demo data seeded."))
         self.stdout.write(f"Demo login password for all users: {DEMO_PASSWORD}")
@@ -252,7 +254,7 @@ class Command(BaseCommand):
                 on_hand = threshold * 5
             KitchenStock.objects.get_or_create(
                 ingredient=ingredient,
-                defaults={"qty_on_hand": on_hand, "reorder_threshold": threshold, "unit": ingredient.default_unit},
+                defaults={"qty_on_hand": on_hand, "reorder_threshold": threshold},
             )
 
     def _seed_recipes(self, ingredients):
@@ -274,9 +276,9 @@ class Command(BaseCommand):
             recipes[spec["name"]] = recipe
             if not created:
                 continue
-            for ing_name, qty, unit, optional in spec["ingredients"]:
+            for ing_name, qty, optional in spec["ingredients"]:
                 RecipeIngredient.objects.create(
-                    recipe=recipe, ingredient=ingredients[ing_name], qty=qty, unit=unit, is_optional=optional
+                    recipe=recipe, ingredient=ingredients[ing_name], qty=qty, is_optional=optional
                 )
             for num, title, desc, duration, temp in spec["steps"]:
                 CookingStep.objects.create(
@@ -334,6 +336,7 @@ class Command(BaseCommand):
         for ri in recipe.ingredients.all():
             IngredientDeduction.objects.create(
                 batch=batch, ingredient=ri.ingredient, theoretical_qty=ri.qty, actual_qty=scale * ri.qty,
+                unit_cost_at_time=ri.ingredient.unit_cost,
             )
         return batch
 
@@ -360,3 +363,10 @@ class Command(BaseCommand):
                 "raised_by": users["kitchen_staff"],
             },
         )
+
+    def _seed_code_sequences(self):
+        """The demo batches/requests above use hardcoded historical codes rather
+        than next_code(), so prime the counters to continue from there instead
+        of restarting at 1 the first time someone starts a real batch."""
+        CodeSequence.objects.get_or_create(prefix="BP", defaults={"last_value": 513})
+        CodeSequence.objects.get_or_create(prefix="KSR", defaults={"last_value": 47})

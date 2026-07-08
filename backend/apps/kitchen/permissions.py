@@ -12,3 +12,17 @@ class IsManager(BasePermission):
             and request.user.is_authenticated
             and (request.user.role == User.Role.MANAGER or request.user.is_superuser)
         )
+
+
+class IsHeadChefOrManager(BasePermission):
+    message = "Restricted to Head Chef and Manager."
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                request.user.role in (User.Role.HEAD_CHEF, User.Role.MANAGER)
+                or request.user.is_superuser
+            )
+        )

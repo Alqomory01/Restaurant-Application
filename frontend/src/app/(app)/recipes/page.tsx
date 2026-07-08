@@ -198,7 +198,11 @@ function RecipeForm({
 
   function addIngredient() {
     if (ingredients.length === 0) return;
-    setItems((prev) => [...prev, { ingredient: ingredients[0].id, qty: "1", unit: ingredients[0].default_unit, is_optional: false }]);
+    setItems((prev) => [...prev, { ingredient: ingredients[0].id, qty: "1", is_optional: false }]);
+  }
+
+  function unitFor(ingredientId: number) {
+    return ingredients.find((ing) => ing.id === ingredientId)?.default_unit ?? "";
   }
   function updateIngredient(i: number, patch: Partial<RecipeIngredient>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -230,7 +234,7 @@ function RecipeForm({
       target_food_cost_pct: targetFc || null,
       allergen_info: allergen,
       status,
-      ingredients: items.map((i) => ({ ingredient: i.ingredient, qty: i.qty, unit: i.unit, is_optional: i.is_optional })),
+      ingredients: items.map((i) => ({ ingredient: i.ingredient, qty: i.qty, is_optional: i.is_optional })),
       steps: steps.map((s) => ({
         step_number: s.step_number,
         title: s.title,
@@ -291,7 +295,9 @@ function RecipeForm({
                 ))}
               </select>
               <input type="number" className={inputCls} value={item.qty} onChange={(e) => updateIngredient(i, { qty: e.target.value })} />
-              <input className={inputCls} value={item.unit} onChange={(e) => updateIngredient(i, { unit: e.target.value })} />
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-500" title="Set on the ingredient itself, not per recipe">
+                {unitFor(item.ingredient) || "—"}
+              </div>
               <label className="flex items-center gap-1 text-slate-500">
                 <input type="checkbox" checked={item.is_optional} onChange={(e) => updateIngredient(i, { is_optional: e.target.checked })} />
                 Optional

@@ -3,27 +3,59 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
-import type { CostingRow } from "@/lib/types";
+import type { CostingRow, CostingStatus, CostingSummaryRow } from "@/lib/types";
 import { Card, CardHeader, Badge, Spinner, EmptyState } from "@/components/ui";
+
+const statusTone: Record<CostingStatus, "success" | "warning" | "danger" | "neutral"> = {
+  on_target: "success",
+  watch: "warning",
+  over_target: "danger",
+  no_data: "neutral",
+};
+
+const statusLabel: Record<CostingStatus, string> = {
+  on_target: "On target",
+  watch: "Watch",
+  over_target: "Over target",
+  no_data: "No data yet",
+};
 
 export default function CostingPage() {
   const { user } = useAuth();
-  const [rows, setRows] = useState<CostingRow[] | null>(null);
+
+  if (user?.role === "MANAGER") return <ManagerCosting />;
+  if (user?.role === "HEAD_CHEF") return <HeadChefCostingSummary />;
+  return <LockedCosting />;
+}
+
+function LockedCosting() {
+  return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-50 text-2xl">
+        🔒
+      </div>
+      <div>
+        <div className="text-base font-bold text-slate-900">Recipe costing is restricted</div>
+        <div className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+          Food cost analysis is visible to Head Chef and Manager roles only. Ask your General Manager if you need
+          access.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeadChefCostingSummary() {
+  const [rows, setRows] = useState<CostingSummaryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [forbidden, setForbidden] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await api.get<CostingRow[]>("/kitchen/costing/");
-        setRows(data);
+        setRows(await api.get<CostingSummaryRow[]>("/kitchen/costing/summary/"));
       } catch (err) {
-        if (err instanceof ApiError && err.status === 403) {
-          setForbidden(true);
-        } else {
-          setError(err instanceof ApiError ? err.message : "Failed to load costing data.");
-        }
+        setError(err instanceof ApiError ? err.message : "Failed to load costing trend.");
       } finally {
         setLoading(false);
       }
@@ -31,24 +63,50 @@ export default function CostingPage() {
   }, []);
 
   if (loading) return <Spinner />;
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (!rows) return null;
 
-  if (forbidden || user?.role !== "MANAGER") {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-50 text-2xl">
-          🔒
+  return (
+    <Card>
+      <CardHeader title="Food cost trend" />
+      <p className="mb-4 text-xs text-slate-500">
+        A quick read on where each dish stands against its target food cost — exact figures and margins are
+        manager-only, but this is enough to know what to watch on the line.
+      </p>
+      {rows.length === 0 ? (
+        <EmptyState>No recipes yet.</EmptyState>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div key={r.recipe_id} className="flex items-center justify-between rounded-md border border-slate-200 p-2.5 text-xs">
+              <span className="font-medium text-slate-800">{r.recipe_name}</span>
+              <Badge tone={statusTone[r.status]}>{statusLabel[r.status]}</Badge>
+            </div>
+          ))}
         </div>
-        <div>
-          <div className="text-base font-bold text-slate-900">Recipe costing is restricted</div>
-          <div className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-            Food cost analysis is visible to managers only. Ask your General Manager to change your role if you
-            need access.
-          </div>
-        </div>
-      </div>
-    );
-  }
+      )}
+    </Card>
+  );
+}
 
+function ManagerCosting() {
+  const [rows, setRows] = useState<CostingRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setRows(await api.get<CostingRow[]>("/kitchen/costing/"));
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to load costing data.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <Spinner />;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!rows) return null;
 

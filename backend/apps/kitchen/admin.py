@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     BatchProduction,
+    CodeSequence,
     CookingStep,
     Ingredient,
     IngredientDeduction,
@@ -39,6 +40,10 @@ class IngredientAdmin(admin.ModelAdmin):
 class KitchenStockAdmin(admin.ModelAdmin):
     list_display = ("ingredient", "qty_on_hand", "reorder_threshold", "unit", "below_threshold")
 
+    @admin.display(description="Unit")
+    def unit(self, obj):
+        return obj.ingredient.default_unit
+
 
 class ProductionPlanItemInline(admin.TabularInline):
     model = ProductionPlanItem
@@ -58,9 +63,14 @@ class BatchProductionAdmin(admin.ModelAdmin):
 
 @admin.register(IngredientDeduction)
 class IngredientDeductionAdmin(admin.ModelAdmin):
-    list_display = ("batch", "ingredient", "theoretical_qty", "actual_qty")
+    list_display = ("batch", "ingredient", "theoretical_qty", "actual_qty", "unit_cost_at_time")
 
 
 @admin.register(StockRequest)
 class StockRequestAdmin(admin.ModelAdmin):
     list_display = ("request_code", "ingredient", "qty_requested", "urgency", "status", "raised_by")
+
+
+@admin.register(CodeSequence)
+class CodeSequenceAdmin(admin.ModelAdmin):
+    list_display = ("prefix", "last_value")

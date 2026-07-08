@@ -2,6 +2,22 @@ from django.conf import settings
 from django.db import models
 
 
+class CodeSequence(models.Model):
+    """Backs atomic human-readable code generation (BP-0001, KSR-0047, ...).
+
+    A plain "read the max existing code, add one" approach races under
+    concurrent requests (two chefs tapping Start Production at once can get
+    the same code). Locking this dedicated counter row via select_for_update
+    serializes increments safely.
+    """
+
+    prefix = models.CharField(max_length=10, unique=True)
+    last_value = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.prefix}: {self.last_value}"
+
+
 class Ingredient(models.Model):
     name = models.CharField(max_length=120, unique=True)
     default_unit = models.CharField(max_length=20)
@@ -38,17 +54,21 @@ class Recipe(models.Model):
 
 
 class RecipeIngredient(models.Model):
+    """qty is always expressed in ingredient.default_unit — there is no
+    separate unit field here on purpose. A per-row unit that could drift
+    from the ingredient's own unit is exactly what let a recipe silently
+    request the wrong scale of an ingredient (e.g. L vs ml)."""
+
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name="ingredients")
     ingredient = models.ForeignKey(Ingredient, on_delete=models.PROTECT, related_name="recipe_uses")
     qty = models.DecimalField(max_digits=10, decimal_places=3)
-    unit = models.CharField(max_length=20)
     is_optional = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["id"]
 
     def __str__(self):
-        return f"{self.recipe.name}: {self.qty}{self.unit} {self.ingredient.name}"
+        return f"{self.recipe.name}: {self.qty}{self.ingredient.default_unit} {self.ingredient.name}"
 
 
 class CookingStep(models.Model):
@@ -68,17 +88,19 @@ class CookingStep(models.Model):
 
 
 class KitchenStock(models.Model):
+    """qty_on_hand and reorder_threshold are in ingredient.default_unit —
+    see the note on RecipeIngredient; same reasoning applies here."""
+
     ingredient = models.OneToOneField(Ingredient, on_delete=models.CASCADE, related_name="kitchen_stock")
     qty_on_hand = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     reorder_threshold = models.DecimalField(max_digits=10, decimal_places=3, default=0)
-    unit = models.CharField(max_length=20)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["ingredient__name"]
 
     def __str__(self):
-        return f"{self.ingredient.name}: {self.qty_on_hand}{self.unit}"
+        return f"{self.ingredient.name}: {self.qty_on_hand}{self.ingredient.default_unit}"
 
     @property
     def below_threshold(self):
@@ -161,10 +183,16 @@ class BatchProduction(models.Model):
 
 
 class IngredientDeduction(models.Model):
+    """unit_cost_at_time snapshots Ingredient.unit_cost at the moment this
+    deduction was written. Without it, actual-cost reports silently
+    recalculate every time a supplier price changes, so last month's food
+    cost % would drift depending on when you happened to look at it."""
+
     batch = models.ForeignKey(BatchProduction, on_delete=models.CASCADE, related_name="deductions")
     ingredient = models.ForeignKey(Ingredient, on_delete=models.PROTECT, related_name="deductions")
     theoretical_qty = models.DecimalField(max_digits=10, decimal_places=3)
     actual_qty = models.DecimalField(max_digits=10, decimal_places=3)
+    unit_cost_at_time = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
         return f"{self.batch.batch_code}: {self.ingredient.name} {self.actual_qty}"
