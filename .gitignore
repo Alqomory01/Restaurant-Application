@@ -1,0 +1,26 @@
+# env
+.env
+
+# local tooling state
+.claude/
+
+# Python / Django
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+backend/staticfiles/
+backend/media/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# editor/OS
+.DS_Store
+*.pem
+
+# logs
+npm-debug.log*
+yarn-debug.log*
