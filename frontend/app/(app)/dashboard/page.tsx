@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Flame, TrendingUp, AlertTriangle, Wallet, ClipboardList, CircleCheck, PackageCheck, Activity, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
 import { Card, CardHeader, KpiTile, LockedTile, Badge, Spinner, EmptyState } from "@/components/ui";
@@ -98,7 +99,7 @@ export default function DashboardPage() {
           label="Wastage today"
           value={dashboard.wastage_today_count}
           tone="warning"
-          sub={canSeeActivity && dashboard.wastage_today_value != null ? `₦${dashboard.wastage_today_value.toLocaleString()}` : "entries logged"}
+          sub={canSeeActivity && dashboard.wastage_today_value != null ? formatCurrency(dashboard.wastage_today_value) : "entries logged"}
         />
         {isManager ? (
           <KpiTile

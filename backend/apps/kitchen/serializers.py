@@ -226,7 +226,10 @@ class WastageLogSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if user and (user.role in (User.Role.HEAD_CHEF, User.Role.MANAGER) or user.is_superuser):
-            return str(obj.qty * obj.unit_cost_at_time)
+            # qty (3dp) * unit_cost_at_time (2dp) multiplies out to 5dp —
+            # round to money's 2dp instead of leaking the raw precision.
+            value = (obj.qty * obj.unit_cost_at_time).quantize(Decimal("0.01"))
+            return str(value)
         return None
 
     def validate(self, attrs):

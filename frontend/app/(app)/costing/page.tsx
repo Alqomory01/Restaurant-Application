@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
 import type { CostingRow, CostingStatus, CostingSummaryRow } from "@/lib/types";
 import { Card, CardHeader, Badge, Spinner, EmptyState } from "@/components/ui";
 
@@ -136,8 +137,8 @@ function ManagerCosting() {
               return (
                 <tr key={r.recipe_id} className="border-t border-border">
                   <td className="py-2 font-medium text-ink">{r.recipe_name}</td>
-                  <td className="py-2 text-ink-soft">₦{r.theoretical_cost_per_unit}</td>
-                  <td className="py-2 text-ink-soft">{r.actual_cost_per_unit != null ? `₦${r.actual_cost_per_unit}` : "—"}</td>
+                  <td className="py-2 text-ink-soft">{formatCurrency(r.theoretical_cost_per_unit)}</td>
+                  <td className="py-2 text-ink-soft">{formatCurrency(r.actual_cost_per_unit)}</td>
                   <td className="py-2 text-ink-soft">{r.theoretical_food_cost_pct != null ? `${r.theoretical_food_cost_pct}%` : "—"}</td>
                   <td className="py-2 text-ink-soft">{r.actual_food_cost_pct != null ? `${r.actual_food_cost_pct}%` : "—"}</td>
                   <td className="py-2 text-ink-soft">{r.target_food_cost_pct != null ? `${r.target_food_cost_pct}%` : "—"}</td>

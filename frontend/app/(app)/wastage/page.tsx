@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
 import type { BatchProduction, Ingredient, InsufficientStockError, WastageEntry, WastageReason } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
@@ -128,7 +129,7 @@ export default function WastagePage() {
                     <td className="py-2">
                       <Badge tone={reasonTone[e.reason]}>{reasonLabel[e.reason]}</Badge>
                     </td>
-                    <td className="py-2 text-ink-soft">{e.value != null ? `₦${e.value}` : "—"}</td>
+                    <td className="py-2 text-ink-soft">{formatCurrency(e.value)}</td>
                     <td className="py-2 text-ink-soft">{e.logged_by_name ?? "—"}</td>
                     <td className="py-2 text-ink-faint">{new Date(e.logged_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
                   </tr>

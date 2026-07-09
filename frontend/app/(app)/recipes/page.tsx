@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
 import type { CookingStep, Ingredient, Recipe, RecipeIngredient } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
@@ -100,7 +101,7 @@ export default function RecipesPage() {
                 <td className="py-2 text-ink-soft">
                   {r.yield_qty} {r.yield_unit}
                 </td>
-                <td className="py-2 text-ink-soft">₦{r.selling_price}</td>
+                <td className="py-2 text-ink-soft">{formatCurrency(r.selling_price)}</td>
                 <td className="py-2 text-ink-soft">{r.target_food_cost_pct ? `${r.target_food_cost_pct}%` : "—"}</td>
                 <td className="py-2">
                   <Badge tone={statusTone[r.status]}>{r.status}</Badge>
