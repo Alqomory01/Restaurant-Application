@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CircleCheck } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import type { ProductionPlan, ProductionPlanItem } from "@/lib/types";
 import { Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
@@ -21,7 +21,7 @@ export default function KdsPage() {
       const list = Array.isArray(plans) ? plans : plans.results ?? [];
       setPlan(list[0] ?? null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load kitchen display.");
+      setError(errorMessage(err, "Failed to load kitchen display."));
     } finally {
       setLoading(false);
     }
@@ -46,7 +46,7 @@ export default function KdsPage() {
       await api.post(`/kitchen/plan-items/${item.id}/start-batch/`);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not start batch.");
+      setError(errorMessage(err, "Could not start batch."));
     } finally {
       setBusyId(null);
     }

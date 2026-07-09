@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { CookingStep, Ingredient, Recipe, RecipeIngredient } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -33,7 +33,7 @@ export default function RecipesPage() {
       setRecipes(Array.isArray(recipeData) ? recipeData : recipeData.results ?? []);
       setIngredients(Array.isArray(ingredientData) ? ingredientData : ingredientData.results ?? []);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load recipes.");
+      setError(errorMessage(err, "Failed to load recipes."));
     } finally {
       setLoading(false);
     }
@@ -255,7 +255,7 @@ function RecipeForm({
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save recipe.");
+      setError(errorMessage(err, "Failed to save recipe."));
     } finally {
       setSaving(false);
     }

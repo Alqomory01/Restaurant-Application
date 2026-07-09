@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { BatchProduction, Ingredient, InsufficientStockError, WastageEntry, WastageReason } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -53,7 +53,7 @@ export default function WastagePage() {
       const batchList = Array.isArray(batchData) ? batchData : batchData.results ?? [];
       setBatches(batchList.filter((b) => b.status === "COMPLETE"));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load wastage log.");
+      setError(errorMessage(err, "Failed to load wastage log."));
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function WastagePage() {
         setError(body.detail);
         setShortfalls(body.shortfalls ?? []);
       } else {
-        setError(err instanceof ApiError ? err.message : "Failed to log wastage.");
+        setError(errorMessage(err, "Failed to log wastage."));
       }
     } finally {
       setSubmitting(false);

@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -435,3 +436,144 @@ class DashboardView(APIView):
             )
 
         return Response(payload)
+
+
+class ReportsView(APIView):
+    """Batch efficiency, wastage, and staff-output rollups over a date range.
+
+    Sell-through can't be computed yet — there's no POS/DineFlow module to
+    say what actually sold — so "utilization" (produced minus wasted, as a
+    % of produced) stands in as the honest proxy until that data exists.
+    Money figures (wastage value, per-staff wastage value) are Manager-only,
+    same visibility rule as costing and wastage elsewhere in the module.
+    """
+
+    permission_classes = [IsHeadChefOrManager]
+
+    def get(self, request):
+        today = timezone.localdate()
+        date_from = parse_date(request.query_params.get("date_from", "")) or today
+        date_to = parse_date(request.query_params.get("date_to", "")) or today
+        if date_to < date_from:
+            date_from, date_to = date_to, date_from
+
+        is_manager = request.user.role == request.user.Role.MANAGER or request.user.is_superuser
+
+        batches = list(
+            BatchProduction.objects.filter(
+                status=BatchProduction.Status.COMPLETE,
+                completed_at__date__gte=date_from,
+                completed_at__date__lte=date_to,
+            ).select_related("plan_item__recipe", "produced_by")
+        )
+        wastage = list(
+            WastageLog.objects.filter(
+                logged_at__date__gte=date_from, logged_at__date__lte=date_to
+            ).select_related("batch__plan_item__recipe", "logged_by")
+        )
+
+        by_recipe = {}
+        for b in batches:
+            recipe = b.plan_item.recipe
+            row = by_recipe.setdefault(
+                recipe.id,
+                {"recipe_id": recipe.id, "recipe_name": recipe.name, "batches_count": 0,
+                 "planned_qty": Decimal("0"), "actual_qty": Decimal("0")},
+            )
+            row["batches_count"] += 1
+            row["planned_qty"] += b.planned_qty
+            row["actual_qty"] += b.actual_qty or Decimal("0")
+
+        wasted_qty_by_recipe, wasted_value_by_recipe = {}, {}
+        for w in wastage:
+            if w.batch_id and w.batch and w.batch.plan_item_id:
+                recipe_id = w.batch.plan_item.recipe_id
+                value = w.qty * w.unit_cost_at_time
+                wasted_qty_by_recipe[recipe_id] = wasted_qty_by_recipe.get(recipe_id, Decimal("0")) + w.qty
+                wasted_value_by_recipe[recipe_id] = wasted_value_by_recipe.get(recipe_id, Decimal("0")) + value
+
+        batch_efficiency = []
+        for recipe_id, row in by_recipe.items():
+            wasted_qty = wasted_qty_by_recipe.get(recipe_id, Decimal("0"))
+            entry = {
+                "recipe_id": row["recipe_id"],
+                "recipe_name": row["recipe_name"],
+                "batches_count": row["batches_count"],
+                "planned_qty": row["planned_qty"],
+                "actual_qty": row["actual_qty"],
+                "production_efficiency_pct": (
+                    round(row["actual_qty"] / row["planned_qty"] * 100, 1) if row["planned_qty"] else None
+                ),
+                "wasted_qty": wasted_qty,
+                "utilization_pct": (
+                    round((row["actual_qty"] - wasted_qty) / row["actual_qty"] * 100, 1)
+                    if row["actual_qty"] else None
+                ),
+            }
+            if is_manager:
+                entry["wasted_value"] = round(wasted_value_by_recipe.get(recipe_id, Decimal("0")), 2)
+            batch_efficiency.append(entry)
+        batch_efficiency.sort(key=lambda r: r["recipe_name"])
+
+        by_reason = {}
+        total_count, total_value = 0, Decimal("0")
+        for w in wastage:
+            value = w.qty * w.unit_cost_at_time
+            total_count += 1
+            total_value += value
+            bucket = by_reason.setdefault(w.reason, {"reason": w.reason, "count": 0, "value": Decimal("0")})
+            bucket["count"] += 1
+            bucket["value"] += value
+
+        by_reason_list = sorted(by_reason.values(), key=lambda r: r["count"], reverse=True)
+        for r in by_reason_list:
+            r["value"] = round(r["value"], 2) if is_manager else None
+            if not is_manager:
+                del r["value"]
+
+        wastage_summary = {"total_count": total_count, "by_reason": by_reason_list}
+        if is_manager:
+            wastage_summary["total_value"] = round(total_value, 2)
+
+        by_staff = {}
+        for b in batches:
+            if not b.produced_by_id:
+                continue
+            entry = by_staff.setdefault(
+                b.produced_by_id,
+                {"user_id": b.produced_by_id, "name": _display_name(b.produced_by),
+                 "batches_completed": 0, "wastage_logged": 0, "wastage_value": Decimal("0")},
+            )
+            entry["batches_completed"] += 1
+        for w in wastage:
+            if not w.logged_by_id:
+                continue
+            entry = by_staff.setdefault(
+                w.logged_by_id,
+                {"user_id": w.logged_by_id, "name": _display_name(w.logged_by),
+                 "batches_completed": 0, "wastage_logged": 0, "wastage_value": Decimal("0")},
+            )
+            entry["wastage_logged"] += 1
+            entry["wastage_value"] += w.qty * w.unit_cost_at_time
+
+        staff_output = sorted(by_staff.values(), key=lambda s: s["batches_completed"], reverse=True)
+        for s in staff_output:
+            if is_manager:
+                s["wastage_value"] = round(s["wastage_value"], 2)
+            else:
+                del s["wastage_value"]
+
+        return Response(
+            {
+                "date_from": date_from,
+                "date_to": date_to,
+                "batch_efficiency": batch_efficiency,
+                "wastage_summary": wastage_summary,
+                "staff_output": staff_output,
+            }
+        )
+
+
+def _display_name(user):
+    full = f"{user.first_name} {user.last_name}".strip()
+    return full or user.username

@@ -1,6 +1,6 @@
 # Mise ERP — Kitchen Module
 
-Restaurant ERP, starting with the kitchen module: recipes, daily production planning, batch tracking with atomic ingredient deduction, kitchen stock, stock requests, wastage tracking, role-gated recipe costing, an audit trail, and a live kitchen dashboard/KDS — in light or dark mode.
+Restaurant ERP, starting with the kitchen module: recipes, daily production planning, batch tracking with atomic ingredient deduction, kitchen stock, stock requests, wastage tracking, role-gated recipe costing, reporting, an audit trail, and a live kitchen dashboard/KDS — in light or dark mode, resilient to a dropped connection.
 
 Stack: **Next.js** (App Router) + **Redux Toolkit** + **Django REST Framework** + **PostgreSQL**, wired together with Docker Compose.
 
@@ -73,7 +73,7 @@ cd backend
 POSTGRES_HOST=localhost POSTGRES_PORT=5433 ./.venv/Scripts/python manage.py test apps.kitchen apps.accounts
 ```
 
-27 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
+32 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, reporting rollups and role-gated money figures, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
 
 ## What's implemented
 
@@ -111,6 +111,18 @@ Cost figures on wastage entries follow the same visibility rule as recipe costin
 
 **Dashboard** — live KPIs (batches today, production efficiency, ingredient shortfalls, wastage today), with food-cost figures gated to Manager.
 
+**Reports** — Head Chef/Manager only, filterable by Today / Last 7 days / This month:
+- Production and utilization per recipe (planned vs actual, wasted, and a "utilization %" — produced minus wasted as a share of produced. This stands in for real sell-through until a POS module exists to say what actually sold).
+- Wastage broken down by reason, with a running total.
+- Per-staff output: batches completed and wastage logged.
+
+Wastage cost figures (per recipe, by reason, per staff, and the overall total) follow the same Manager-only visibility rule as everywhere else in the module.
+
+**Offline/retry handling** — a dropped connection is now a first-class case instead of a dead end:
+- The API client (`lib/api.ts`) tells a real network failure (`NetworkError`) apart from a normal error response (`ApiError`) and surfaces an honest message either way, instead of a generic "failed to load".
+- Read requests (GET) retry automatically up to twice with backoff on a dropped connection — most transient wifi blips resolve themselves without the user noticing. Writes (POST/PATCH/DELETE) don't auto-retry, since replaying a request that may have already reached the server risks a duplicate; those fail fast with a clear message and the form keeps whatever the user typed, so retrying is just pressing submit again.
+- A slim banner at the top of the app (`components/ConnectionBanner.tsx`) tracks real server reachability — not just the browser's `navigator.onLine`, which can say "online" even when the wifi router has no upstream internet — by pinging a lightweight `/api/health/` endpoint on load, on the browser's `offline`/`online` events, and every 20s as a fallback. It clears itself automatically once the connection is back.
+
 ## Where this is headed
 
 Mise ERP is being built as a **multi-tenant SaaS product** — sold to restaurant businesses large and small, not just run internally for one — with two planned offerings: a monthly subscription and a one-time enterprise deployment that we maintain under contract. The explicit bar to clear is Orda Africa (the honest apples-to-apples competitor) and Odoo's restaurant module (beatable on depth-for-this-vertical and simplicity, not on Odoo's total feature surface across every business domain).
@@ -121,8 +133,7 @@ Mise ERP is being built as a **multi-tenant SaaS product** — sold to restauran
 
 Being upfront about what's still missing rather than letting it be a surprise:
 
-- **No offline/retry handling on the frontend.** A dropped connection mid-action currently just shows an error with no retry path (the backend transaction itself is safe either way).
-- **No Reports screen.** Sell-through, staff output, wastage trends over time, and exports don't exist yet.
+- **Reports has no real sell-through yet.** "Utilization" (produced minus wasted) is an honest proxy, not actual units sold — that needs a POS/DineFlow module this kitchen module doesn't have. No exports (CSV/PDF) yet either.
 - **Multi-tenancy isn't real yet.** `Organization` and `Branch` exist as structural stubs but nothing enforces data isolation between them — fine for one operation, required before this is sold to more than one.
 - **API routes aren't versioned** (`/api/kitchen/...` rather than `/api/v1/kitchen/...`).
 - FoodOps (procurement/inventory), DineFlow (POS), and the Management module don't exist yet — see `mise_system_flows.html` for the eventual full-system design this kitchen module is the first piece of.

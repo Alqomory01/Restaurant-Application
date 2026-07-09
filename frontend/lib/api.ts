@@ -1,7 +1,17 @@
 import { store } from "@/lib/store";
 import { setAccessToken } from "@/lib/features/authSlice";
 import { BASE_URL } from "@/lib/config";
-import { ApiError } from "@/lib/apiError";
+import { ApiError, NetworkError, errorMessage } from "@/lib/apiError";
+
+// Backoff between automatic retries of a dropped connection. Only GET
+// requests retry automatically — a POST/PATCH/DELETE that never reached the
+// server could just as easily have reached it and failed on the way back,
+// so silently replaying it risks a duplicate write. Reads are safe to retry.
+const NETWORK_RETRY_DELAYS_MS = [400, 1200];
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -35,20 +45,33 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   skipAuthRetry?: boolean;
+  networkRetriesLeft?: number;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, skipAuthRetry } = options;
+  const networkRetriesLeft =
+    options.networkRetriesLeft ?? (method === "GET" ? NETWORK_RETRY_DELAYS_MS.length : 0);
   const token = store.getState().auth.accessToken;
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    if (networkRetriesLeft > 0) {
+      const attempt = NETWORK_RETRY_DELAYS_MS.length - networkRetriesLeft;
+      await sleep(NETWORK_RETRY_DELAYS_MS[attempt]);
+      return request<T>(path, { ...options, networkRetriesLeft: networkRetriesLeft - 1 });
+    }
+    throw new NetworkError();
+  }
 
   if (res.status === 401 && !skipAuthRetry) {
     const refreshed = await refreshAccessToken();
@@ -79,4 +102,4 @@ export const api = {
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-export { ApiError, BASE_URL, refreshAccessToken };
+export { ApiError, NetworkError, errorMessage, BASE_URL, refreshAccessToken };

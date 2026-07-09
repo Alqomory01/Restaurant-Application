@@ -13,6 +13,7 @@ import {
   Package,
   Send,
   Trash2,
+  BarChart3,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,9 @@ const NAV: { section: string; items: NavItem[] }[] = [
     { href: "/requests", label: "Stock requests", icon: Send },
     { href: "/wastage", label: "Wastage log", icon: Trash2 },
   ] },
+  { section: "Insights", items: [
+    { href: "/reports", label: "Reports", icon: BarChart3 },
+  ] },
 ];
 
 const TITLES: Record<string, string> = {
@@ -55,6 +59,7 @@ const TITLES: Record<string, string> = {
   "/stock": "Kitchen stock",
   "/requests": "Stock requests",
   "/wastage": "Wastage log",
+  "/reports": "Reports",
 };
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -68,7 +73,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex min-h-0 flex-1 overflow-hidden">
       <aside className="flex w-52 flex-shrink-0 flex-col overflow-y-auto border-r border-border bg-surface">
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-4">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-sm font-bold text-white">M</div>

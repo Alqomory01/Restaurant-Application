@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import type { ProductionPlan, Recipe, StockRequest } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
@@ -43,7 +43,7 @@ export default function PlanningPage() {
       setPlan(planListRaw[0] ?? null);
       setRecipes(recipeListRaw);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load production plan.");
+      setError(errorMessage(err, "Failed to load production plan."));
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export default function PlanningPage() {
       setShowForm(false);
       setDraftItems([]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create plan.");
+      setError(errorMessage(err, "Failed to create plan."));
     } finally {
       setCreating(false);
     }
@@ -106,7 +106,7 @@ export default function PlanningPage() {
       setPlan(res.plan);
       setCreatedRequests(res.stock_requests_created);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to submit plan.");
+      setError(errorMessage(err, "Failed to submit plan."));
     } finally {
       setSubmitting(false);
     }

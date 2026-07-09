@@ -202,3 +202,49 @@ export interface WastageEntry {
   logged_by_name: string | null;
   logged_at: string;
 }
+
+export interface BatchEfficiencyRow {
+  recipe_id: number;
+  recipe_name: string;
+  batches_count: number;
+  planned_qty: number;
+  actual_qty: number;
+  production_efficiency_pct: number | null;
+  wasted_qty: number;
+  /** (actual - wasted) / actual — a proxy for "how much of what was made got
+   * used", pending real POS sell-through data. */
+  utilization_pct: number | null;
+  /** Manager only. */
+  wasted_value?: number;
+}
+
+export interface WastageByReasonRow {
+  reason: WastageReason;
+  count: number;
+  /** Manager only. */
+  value?: number;
+}
+
+export interface WastageSummary {
+  total_count: number;
+  by_reason: WastageByReasonRow[];
+  /** Manager only. */
+  total_value?: number;
+}
+
+export interface StaffOutputRow {
+  user_id: number;
+  name: string;
+  batches_completed: number;
+  wastage_logged: number;
+  /** Manager only. */
+  wastage_value?: number;
+}
+
+export interface ReportsData {
+  date_from: string;
+  date_to: string;
+  batch_efficiency: BatchEfficiencyRow[];
+  wastage_summary: WastageSummary;
+  staff_output: StaffOutputRow[];
+}

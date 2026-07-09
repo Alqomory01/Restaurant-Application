@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import type { BatchProduction, InsufficientStockError, QualityCheck } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
@@ -23,7 +23,7 @@ export default function BatchesPage() {
       const data = await api.get<{ results?: BatchProduction[] } | BatchProduction[]>("/kitchen/batches/");
       setBatches(Array.isArray(data) ? data : data.results ?? []);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load batches.");
+      setError(errorMessage(err, "Failed to load batches."));
     } finally {
       setLoading(false);
     }
@@ -114,7 +114,7 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
         setError(body.detail);
         setShortfalls(body.shortfalls ?? []);
       } else {
-        setError(err instanceof ApiError ? err.message : "Failed to complete batch.");
+        setError(errorMessage(err, "Failed to complete batch."));
       }
     } finally {
       setSubmitting(false);

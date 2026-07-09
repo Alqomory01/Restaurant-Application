@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { StoreProvider } from "@/components/StoreProvider";
+import { ConnectionBanner } from "@/components/ConnectionBanner";
 
 export const metadata: Metadata = {
   title: "KitchenCore · Mise ERP",
@@ -28,11 +29,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col bg-bg text-ink" suppressHydrationWarning>
+      <body className="h-full flex flex-col bg-bg text-ink" suppressHydrationWarning>
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}
         </Script>
-        <StoreProvider>{children}</StoreProvider>
+        <StoreProvider>
+          <ConnectionBanner />
+          {children}
+        </StoreProvider>
       </body>
     </html>
   );

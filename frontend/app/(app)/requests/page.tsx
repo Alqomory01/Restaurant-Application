@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import type { Ingredient, StockRequest, Urgency } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
@@ -32,7 +32,7 @@ export default function RequestsPage() {
       setRequests(Array.isArray(reqData) ? reqData : reqData.results ?? []);
       setIngredients(Array.isArray(ingData) ? ingData : ingData.results ?? []);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load stock requests.");
+      setError(errorMessage(err, "Failed to load stock requests."));
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ export default function RequestsPage() {
       setReason("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create stock request.");
+      setError(errorMessage(err, "Failed to create stock request."));
     } finally {
       setSubmitting(false);
     }
@@ -70,7 +70,7 @@ export default function RequestsPage() {
       await api.post(`/kitchen/stock-requests/${id}/mark-fulfilled/`);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to update request.");
+      setError(errorMessage(err, "Failed to update request."));
     }
   }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { CostingRow, CostingStatus, CostingSummaryRow } from "@/lib/types";
 import { Card, CardHeader, Badge, Spinner, EmptyState } from "@/components/ui";
@@ -57,7 +57,7 @@ function HeadChefCostingSummary() {
       try {
         setRows(await api.get<CostingSummaryRow[]>("/kitchen/costing/summary/"));
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Failed to load costing trend.");
+        setError(errorMessage(err, "Failed to load costing trend."));
       } finally {
         setLoading(false);
       }
@@ -101,7 +101,7 @@ function ManagerCosting() {
       try {
         setRows(await api.get<CostingRow[]>("/kitchen/costing/"));
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Failed to load costing data.");
+        setError(errorMessage(err, "Failed to load costing data."));
       } finally {
         setLoading(false);
       }

@@ -3,7 +3,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { ApiError } from "@/lib/api";
+import { ApiError, errorMessage } from "@/lib/api";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -25,7 +25,7 @@ export default function LoginPage() {
       await login(username, password);
       router.replace("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Login failed. Check your credentials.");
+      setError(errorMessage(err, "Login failed. Check your credentials."));
     } finally {
       setSubmitting(false);
     }

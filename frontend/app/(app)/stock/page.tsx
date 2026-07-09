@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import type { KitchenStock } from "@/lib/types";
 import { Card, CardHeader, Badge, Spinner, EmptyState } from "@/components/ui";
 
@@ -18,7 +18,7 @@ export default function StockPage() {
         const data = await api.get<{ results?: KitchenStock[] } | KitchenStock[]>("/kitchen/stock/");
         setStock(Array.isArray(data) ? data : data.results ?? []);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Failed to load kitchen stock.");
+        setError(errorMessage(err, "Failed to load kitchen stock."));
       } finally {
         setLoading(false);
       }

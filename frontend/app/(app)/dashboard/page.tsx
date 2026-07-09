@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Flame, TrendingUp, AlertTriangle, Wallet, ClipboardList, CircleCheck, PackageCheck, Activity, Trash2 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
@@ -56,7 +56,7 @@ export default function DashboardPage() {
           setActivity(await api.get<AuditLogEntry[]>("/kitchen/activity/"));
         }
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Failed to load dashboard.");
+        setError(errorMessage(err, "Failed to load dashboard."));
       } finally {
         setLoading(false);
       }
