@@ -4,8 +4,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import type { DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
+import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
 import { Card, CardHeader, KpiTile, LockedTile, Badge, Spinner, EmptyState } from "@/components/ui";
+
+const actionVerb: Record<string, string> = {
+  CREATED: "created",
+  UPDATED: "updated",
+  DELETED: "deleted",
+  STARTED: "started",
+  COMPLETED: "completed",
+  SUBMITTED: "submitted",
+  RAISED: "raised",
+  AUTO_RAISED: "auto-raised",
+  FULFILLED: "fulfilled",
+};
 
 const statusTone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   COMPLETE: "success",
@@ -19,8 +31,11 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [plan, setPlan] = useState<ProductionPlan | null>(null);
   const [requests, setRequests] = useState<StockRequest[]>([]);
+  const [activity, setActivity] = useState<AuditLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const canSeeActivity = user?.role === "HEAD_CHEF" || user?.role === "MANAGER";
 
   useEffect(() => {
     (async () => {
@@ -35,12 +50,16 @@ export default function DashboardPage() {
         setPlan(planList[0] ?? null);
         const reqList = Array.isArray(stockRequests) ? stockRequests : stockRequests.results ?? [];
         setRequests(reqList.filter((r) => r.status === "PENDING"));
+        if (canSeeActivity) {
+          setActivity(await api.get<AuditLogEntry[]>("/kitchen/activity/"));
+        }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Failed to load dashboard.");
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) return <Spinner />;
@@ -166,6 +185,30 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+
+      {canSeeActivity && (
+        <Card>
+          <CardHeader title="Recent activity" />
+          {activity.length === 0 ? (
+            <EmptyState>Nothing logged yet today.</EmptyState>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {activity.slice(0, 8).map((a) => (
+                <div key={a.id} className="flex items-center justify-between py-2 text-xs">
+                  <span className="text-slate-700">
+                    <span className="font-semibold text-slate-900">{a.actor_name ?? "System"}</span>{" "}
+                    {actionVerb[a.action] ?? a.action.toLowerCase()} {a.object_repr}
+                    {a.detail && <span className="text-slate-500"> — {a.detail}</span>}
+                  </span>
+                  <span className="flex-shrink-0 pl-3 text-slate-400">
+                    {new Date(a.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

@@ -168,3 +168,15 @@ export interface InsufficientStockError {
   detail: string;
   shortfalls: string[];
 }
+
+export interface AuditLogEntry {
+  id: number;
+  actor: number | null;
+  actor_name: string | null;
+  action: string;
+  model_name: string;
+  object_id: string;
+  object_repr: string;
+  detail: string;
+  created_at: string;
+}

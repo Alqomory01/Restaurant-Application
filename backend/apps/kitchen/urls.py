@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AuditLogView,
     BatchProductionViewSet,
     CostingSummaryView,
     CostingView,
@@ -25,6 +26,7 @@ router.register("stock-requests", StockRequestViewSet, basename="stock-request")
 
 urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="kitchen-dashboard"),
+    path("activity/", AuditLogView.as_view(), name="kitchen-activity"),
     path("costing/summary/", CostingSummaryView.as_view(), name="kitchen-costing-summary"),
     path("costing/", CostingView.as_view(), name="kitchen-costing"),
     path("", include(router.urls)),

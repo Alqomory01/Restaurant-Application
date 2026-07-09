@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -22,3 +23,26 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.role})"
+
+
+class AuditLog(models.Model):
+    """Append-only record of who did what. Lives here rather than in the
+    kitchen app because every future module (FoodOps, DineFlow) needs the
+    same "who completed/approved/deleted this" answer, not just kitchen."""
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="audit_entries"
+    )
+    action = models.CharField(max_length=30)
+    model_name = models.CharField(max_length=60)
+    object_id = models.CharField(max_length=40)
+    object_repr = models.CharField(max_length=255)
+    detail = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["model_name", "object_id"])]
+
+    def __str__(self):
+        return f"{self.actor}: {self.action} {self.model_name} {self.object_repr}"

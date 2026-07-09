@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from apps.accounts.models import AuditLog
+
 from .models import (
     BatchProduction,
     CookingStep,
@@ -183,3 +185,11 @@ class StockRequestSerializer(serializers.ModelSerializer):
             "raised_at", "resolved_at",
         ]
         read_only_fields = ["request_code", "status", "raised_by", "raised_at", "resolved_at"]
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_name = serializers.CharField(source="actor.get_full_name", read_only=True, default=None)
+
+    class Meta:
+        model = AuditLog
+        fields = ["id", "actor", "actor_name", "action", "model_name", "object_id", "object_repr", "detail", "created_at"]

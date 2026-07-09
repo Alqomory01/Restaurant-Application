@@ -19,8 +19,12 @@ from .models import (
     Recipe,
     StockRequest,
 )
+from apps.accounts.models import AuditLog
+from apps.accounts.utils import log_action
+
 from .permissions import IsHeadChefOrManager, IsManager
 from .serializers import (
+    AuditLogSerializer,
     BatchCompleteSerializer,
     BatchProductionSerializer,
     IngredientSerializer,
@@ -41,6 +45,18 @@ class IngredientViewSet(viewsets.ModelViewSet):
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.prefetch_related("ingredients__ingredient", "steps")
     serializer_class = RecipeSerializer
+
+    def perform_create(self, serializer):
+        recipe = serializer.save()
+        log_action(self.request.user, "CREATED", recipe)
+
+    def perform_update(self, serializer):
+        recipe = serializer.save()
+        log_action(self.request.user, "UPDATED", recipe)
+
+    def perform_destroy(self, instance):
+        log_action(self.request.user, "DELETED", instance)
+        instance.delete()
 
 
 class KitchenStockViewSet(viewsets.ModelViewSet):
@@ -96,10 +112,15 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                 reason=f"Production plan {plan.service_date} {plan.service_period} shortfall",
                 raised_by=request.user,
             )
+            log_action(request.user, "AUTO_RAISED", req, detail=f"From plan submission ({plan})")
             created_requests.append(req)
 
         plan.status = ProductionPlan.Status.SUBMITTED
         plan.save(update_fields=["status"])
+        log_action(
+            request.user, "SUBMITTED", plan,
+            detail=f"{len(created_requests)} stock request(s) auto-created" if created_requests else "",
+        )
 
         return Response(
             {
@@ -127,6 +148,7 @@ class ProductionPlanItemViewSet(viewsets.ModelViewSet):
         )
         item.status = ProductionPlanItem.Status.IN_PROGRESS
         item.save(update_fields=["status"])
+        log_action(request.user, "STARTED", batch, detail=f"Planned {batch.planned_qty}")
         return Response(BatchProductionSerializer(batch).data, status=status.HTTP_201_CREATED)
 
 
@@ -195,6 +217,11 @@ class BatchProductionViewSet(viewsets.ReadOnlyModelViewSet):
             batch.plan_item.status = ProductionPlanItem.Status.COMPLETE
             batch.plan_item.save(update_fields=["status"])
 
+            log_action(
+                request.user, "COMPLETED", batch,
+                detail=f"Actual {batch.actual_qty}, quality {batch.quality_check}",
+            )
+
         return Response(BatchProductionSerializer(batch).data)
 
 
@@ -203,10 +230,11 @@ class StockRequestViewSet(viewsets.ModelViewSet):
     serializer_class = StockRequestSerializer
 
     def perform_create(self, serializer):
-        serializer.save(
+        stock_request = serializer.save(
             request_code=next_code("KSR"),
             raised_by=self.request.user,
         )
+        log_action(self.request.user, "RAISED", stock_request, detail=stock_request.reason)
 
     @action(detail=True, methods=["post"], url_path="mark-fulfilled")
     def mark_fulfilled(self, request, pk=None):
@@ -218,8 +246,20 @@ class StockRequestViewSet(viewsets.ModelViewSet):
         stock, _ = KitchenStock.objects.get_or_create(ingredient=stock_request.ingredient)
         stock.qty_on_hand += stock_request.qty_requested
         stock.save(update_fields=["qty_on_hand", "updated_at"])
+        log_action(request.user, "FULFILLED", stock_request, detail=f"+{stock_request.qty_requested}")
 
         return Response(StockRequestSerializer(stock_request).data)
+
+
+class AuditLogView(APIView):
+    """Most recent activity across the kitchen module. Head Chef and Manager
+    only — this is "who did this" accountability data, not a KDS concern."""
+
+    permission_classes = [IsHeadChefOrManager]
+
+    def get(self, request):
+        entries = AuditLog.objects.select_related("actor")[:100]
+        return Response(AuditLogSerializer(entries, many=True).data)
 
 
 def _compute_recipe_costing(recipe):
