@@ -224,3 +224,48 @@ class StockRequest(models.Model):
 
     def __str__(self):
         return self.request_code
+
+
+class WastageLog(models.Model):
+    """Two distinct kinds of waste, both logged here but handled differently
+    at write time (see WastageLogViewSet):
+
+    - Raw ingredient waste (spoilage, prep trimming, a dropped tray) points
+      at `ingredient` and really does deduct from KitchenStock — that
+      ingredient is gone, same as if it had gone into a dish.
+    - Finished-product / over-production waste points at `batch` instead.
+      Its ingredients were already deducted when the batch was completed,
+      so logging this does NOT touch KitchenStock again — it only records
+      the cost of the wasted portions for reporting.
+
+    Exactly one of ingredient/batch is set — enforced in the serializer.
+    """
+
+    class Reason(models.TextChoices):
+        OVER_PRODUCTION = "OVER_PRODUCTION", "Over-production"
+        PREP_WASTE = "PREP_WASTE", "Prep waste"
+        SPOILAGE = "SPOILAGE", "Spoilage"
+        DROPPED = "DROPPED", "Dropped / accident"
+        OTHER = "OTHER", "Other"
+
+    ingredient = models.ForeignKey(
+        Ingredient, null=True, blank=True, on_delete=models.PROTECT, related_name="wastage_entries"
+    )
+    batch = models.ForeignKey(
+        BatchProduction, null=True, blank=True, on_delete=models.SET_NULL, related_name="wastage_entries"
+    )
+    qty = models.DecimalField(max_digits=10, decimal_places=3)
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    notes = models.TextField(blank=True)
+    unit_cost_at_time = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    logged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="wastage_logged"
+    )
+    logged_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-logged_at"]
+
+    def __str__(self):
+        target = self.ingredient.name if self.ingredient else (self.batch.batch_code if self.batch else "?")
+        return f"Wastage: {self.qty} {target} ({self.reason})"

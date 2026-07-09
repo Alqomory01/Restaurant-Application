@@ -12,6 +12,7 @@ from .models import (
     Recipe,
     RecipeIngredient,
     StockRequest,
+    WastageLog,
 )
 
 
@@ -74,3 +75,9 @@ class StockRequestAdmin(admin.ModelAdmin):
 @admin.register(CodeSequence)
 class CodeSequenceAdmin(admin.ModelAdmin):
     list_display = ("prefix", "last_value")
+
+
+@admin.register(WastageLog)
+class WastageLogAdmin(admin.ModelAdmin):
+    list_display = ("logged_at", "ingredient", "batch", "qty", "reason", "unit_cost_at_time", "logged_by")
+    list_filter = ("reason",)

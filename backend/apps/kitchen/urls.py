@@ -13,6 +13,7 @@ from .views import (
     ProductionPlanViewSet,
     RecipeViewSet,
     StockRequestViewSet,
+    WastageLogViewSet,
 )
 
 router = DefaultRouter()
@@ -23,6 +24,7 @@ router.register("plans", ProductionPlanViewSet, basename="production-plan")
 router.register("plan-items", ProductionPlanItemViewSet, basename="production-plan-item")
 router.register("batches", BatchProductionViewSet, basename="batch-production")
 router.register("stock-requests", StockRequestViewSet, basename="stock-request")
+router.register("wastage", WastageLogViewSet, basename="wastage-log")
 
 urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="kitchen-dashboard"),

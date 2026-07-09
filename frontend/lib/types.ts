@@ -143,6 +143,8 @@ export interface DashboardData {
   batches_today_complete: number;
   production_efficiency_pct: number | null;
   ingredient_shortfall_count: number;
+  wastage_today_count: number;
+  wastage_today_value?: number | null;
   actual_food_cost_pct?: number | null;
 }
 
@@ -179,4 +181,24 @@ export interface AuditLogEntry {
   object_repr: string;
   detail: string;
   created_at: string;
+}
+
+export type WastageReason = "OVER_PRODUCTION" | "PREP_WASTE" | "SPOILAGE" | "DROPPED" | "OTHER";
+
+export interface WastageEntry {
+  id: number;
+  ingredient: number | null;
+  ingredient_name: string | null;
+  batch: number | null;
+  batch_code: string | null;
+  recipe_name: string | null;
+  qty: string;
+  unit: string;
+  reason: WastageReason;
+  notes: string;
+  /** null when the requesting user's role isn't allowed to see cost figures. */
+  value: string | null;
+  logged_by: number | null;
+  logged_by_name: string | null;
+  logged_at: string;
 }

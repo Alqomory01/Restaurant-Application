@@ -1,8 +1,8 @@
 # Mise ERP — Kitchen Module
 
-Restaurant ERP, starting with the kitchen module: recipes, daily production planning, batch tracking with atomic ingredient deduction, kitchen stock, stock requests, role-gated recipe costing, an audit trail, and a live kitchen dashboard/KDS.
+Restaurant ERP, starting with the kitchen module: recipes, daily production planning, batch tracking with atomic ingredient deduction, kitchen stock, stock requests, wastage tracking, role-gated recipe costing, an audit trail, and a live kitchen dashboard/KDS — in light or dark mode.
 
-Stack: **Next.js** (App Router) + **Django REST Framework** + **PostgreSQL**, wired together with Docker Compose.
+Stack: **Next.js** (App Router) + **Redux Toolkit** + **Django REST Framework** + **PostgreSQL**, wired together with Docker Compose.
 
 ## Run it
 
@@ -24,9 +24,11 @@ All demo users share the password `MiseDemo123!`:
 
 | Username | Role | Can see |
 |---|---|---|
-| `kitchen_staff` | Kitchen Staff | KDS, batches, recipes, stock, requests. No costing. |
-| `head_chef` | Head Chef | All of the above, plus a **limited** food-cost trend signal (on target / watch / over target — no figures). |
+| `kitchen_staff` | Kitchen Staff | KDS, batches, recipes, stock, requests, wastage log (can log entries, not their cost). No costing. |
+| `head_chef` | Head Chef | All of the above, plus wastage cost figures and a **limited** food-cost trend signal (on target / watch / over target — no numbers). |
 | `manager` | Manager | Everything, including full food-cost figures and margins. Also a Django superuser (`/admin` access). |
+
+Use the sun/moon toggle in the top bar to switch light/dark — it's saved per browser and applies everywhere, including the Kitchen Display screen.
 
 ## Project layout
 
@@ -35,10 +37,10 @@ backend/    Django + DRF API
   apps/accounts/   auth (JWT), User/Branch/AuditLog models
   apps/kitchen/    all kitchen domain logic
 frontend/   Next.js App Router UI
-  app/        routes (App Router — no src/ directory)
-  components/ shared UI
-  context/    auth context
-  lib/        API client, types
+  app/         routes (App Router — no src/ directory)
+  components/  shared UI (Shell, ui.tsx, ThemeToggle, StoreProvider)
+  hooks/       useAuth (Redux-backed)
+  lib/         Redux store + slices (features/), API client, types
 docker-compose.yml
 ```
 
@@ -66,7 +68,9 @@ Before pushing: `npx tsc --noEmit && npm run build` on the frontend, `python man
 
 ## What's implemented
 
-**Auth** — JWT (access token in memory, refresh token as an httpOnly cookie), role-scoped to `HEAD_CHEF` / `KITCHEN_STAFF` / `MANAGER`.
+**Auth** — JWT (access token in Redux, refresh token as an httpOnly cookie), role-scoped to `HEAD_CHEF` / `KITCHEN_STAFF` / `MANAGER`. State lives in `lib/features/authSlice.ts`; `hooks/useAuth()` is the component-facing API (`{ user, loading, login, logout }`).
+
+**Theme** — light/dark, toggled from the top bar, persisted to `localStorage`, applied before first paint (no flash of the wrong theme). One semantic color-token system (`bg`, `surface`, `ink`, `brand`, `success`/`warning`/`danger`/`info`, ...) drives every screen — including the Kitchen Display, which used to be hardcoded dark regardless of the rest of the app.
 
 **Recipes** — ingredients, cooking steps, yield/costing fields. An ingredient's unit (kg, L, g, ...) is defined once on the ingredient itself and reused everywhere — a recipe or a stock row can't silently disagree with it.
 
@@ -83,23 +87,28 @@ Before pushing: `npx tsc --noEmit && npm run build` on the frontend, `python man
 
 **Stock requests** — create + mark fulfilled, each one auto-numbered (`KSR-0001`, ...) via a lock-safe counter that won't collide even if two people raise a request in the same instant.
 
+**Wastage log** — two kinds, both logged the same way but handled differently underneath:
+- *Raw ingredient* waste (spoilage, prep trimming, a dropped tray) deducts from kitchen stock, same as if it had gone into a dish — and is blocked with a 409 if there isn't enough on hand.
+- *Finished-batch* waste (over-production, didn't sell) points at a completed batch instead. Its ingredients were already deducted when the batch completed, so this only records the cost of the wasted portions, using the recipe's actual cost where known.
+
+Cost figures on wastage entries follow the same visibility rule as recipe costing — everyone can log and see *what* was wasted and why, only Head Chef/Manager see the ₦ value.
+
 **Recipe costing** — role-gated, enforced server-side (not a cosmetic frontend lock):
 - Manager sees full theoretical-vs-actual cost and margin figures.
 - Head Chef sees a lightweight trend signal per dish (on target / watch / over target) with no figures, so portioning can be corrected on the line without exposing full margin data.
 - Kitchen Staff sees neither.
 
-**Audit trail** — every state-changing action (recipe created/updated/deleted, batch started/completed, plan submitted, stock request raised/fulfilled) is logged with who did it and when, in an append-only log visible to Head Chef and Manager as a "Recent activity" feed on the dashboard.
+**Audit trail** — every state-changing action (recipe created/updated/deleted, batch started/completed, plan submitted, stock request raised/fulfilled, wastage logged) is recorded with who did it and when, in an append-only log visible to Head Chef and Manager as a "Recent activity" feed on the dashboard.
 
-**Dashboard** — live KPIs (batches today, production efficiency, ingredient shortfalls), with the food-cost KPI gated to Manager.
+**Dashboard** — live KPIs (batches today, production efficiency, ingredient shortfalls, wastage today), with food-cost figures gated to Manager.
 
 ## Known limitations / what's next
 
 Being upfront about what's still missing rather than letting it be a surprise:
 
-- **No wastage tracking yet.** Over-production and prep waste aren't captured anywhere, despite being one of the biggest controllable costs in a kitchen. Next up.
 - **No automated tests.** The atomic stock deduction, costing math, and permission checks are all correctness-critical and currently only verified by hand.
 - **No offline/retry handling on the frontend.** A dropped connection mid-action currently just shows an error with no retry path (the backend transaction itself is safe either way).
-- **No Reports screen.** Sell-through, staff output, wastage cost, and exports don't exist yet.
+- **No Reports screen.** Sell-through, staff output, wastage trends over time, and exports don't exist yet.
 - **Multi-branch is a stub.** Every model has a `branch` field but nothing enforces it — fine for a single location, would need real scoping before a second branch goes live.
 - **API routes aren't versioned** (`/api/kitchen/...` rather than `/api/v1/kitchen/...`).
 - FoodOps (procurement/inventory), DineFlow (POS), and the Management module don't exist yet — see `mise_system_flows.html` for the eventual full-system design this kitchen module is the first piece of.

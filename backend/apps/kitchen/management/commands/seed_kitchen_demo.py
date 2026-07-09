@@ -17,6 +17,7 @@ from apps.kitchen.models import (
     Recipe,
     RecipeIngredient,
     StockRequest,
+    WastageLog,
 )
 
 DEMO_PASSWORD = "MiseDemo123!"
@@ -208,6 +209,7 @@ class Command(BaseCommand):
         recipes = self._seed_recipes(ingredients)
         self._seed_production_plan(recipes, users)
         self._seed_stock_requests(ingredients, users)
+        self._seed_wastage(ingredients, users)
         self._seed_code_sequences()
 
         self.stdout.write(self.style.SUCCESS("Kitchen demo data seeded."))
@@ -363,6 +365,35 @@ class Command(BaseCommand):
                 "raised_by": users["kitchen_staff"],
             },
         )
+
+    def _seed_wastage(self, ingredients, users):
+        # Mirrors the current KitchenStock snapshot, not a live deduction —
+        # same reasoning as _complete_batch: the seeded stock levels already
+        # represent "today, after this happened".
+        tomato_puree = ingredients["Tomato puree"]
+        WastageLog.objects.get_or_create(
+            ingredient=tomato_puree,
+            reason=WastageLog.Reason.SPOILAGE,
+            notes="Opened tin left out overnight, discarded on morning check",
+            defaults={
+                "qty": Decimal("1"),
+                "unit_cost_at_time": tomato_puree.unit_cost,
+                "logged_by": users["kitchen_staff"],
+            },
+        )
+
+        jollof_batch = BatchProduction.objects.filter(batch_code="BP-0511").first()
+        if jollof_batch:
+            WastageLog.objects.get_or_create(
+                batch=jollof_batch,
+                reason=WastageLog.Reason.OVER_PRODUCTION,
+                notes="Leftover at end of lunch service, did not hold for dinner",
+                defaults={
+                    "qty": Decimal("6"),
+                    "unit_cost_at_time": jollof_batch.plan_item.recipe.selling_price * Decimal("0.338"),
+                    "logged_by": users["head_chef"],
+                },
+            )
 
     def _seed_code_sequences(self):
         """The demo batches/requests above use hardcoded historical codes rather

@@ -18,6 +18,7 @@ from .models import (
     ProductionPlanItem,
     Recipe,
     StockRequest,
+    WastageLog,
 )
 from apps.accounts.models import AuditLog
 from apps.accounts.utils import log_action
@@ -33,6 +34,7 @@ from .serializers import (
     ProductionPlanSerializer,
     RecipeSerializer,
     StockRequestSerializer,
+    WastageLogSerializer,
 )
 from .utils import next_code
 
@@ -309,6 +311,51 @@ def _costing_status(row):
     return "on_target"
 
 
+class WastageLogViewSet(viewsets.ModelViewSet):
+    http_method_names = ["get", "post", "head", "options"]  # append-only, like the audit log
+    queryset = WastageLog.objects.select_related(
+        "ingredient", "batch__plan_item__recipe", "logged_by"
+    )
+    serializer_class = WastageLogSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ingredient = serializer.validated_data.get("ingredient")
+        batch = serializer.validated_data.get("batch")
+        qty = serializer.validated_data["qty"]
+
+        with transaction.atomic():
+            if ingredient:
+                stock, _ = KitchenStock.objects.select_for_update().get_or_create(ingredient=ingredient)
+                if stock.qty_on_hand < qty:
+                    return Response(
+                        {
+                            "detail": f"Not enough {ingredient.name} in stock to log this wastage.",
+                            "shortfalls": [
+                                f"{ingredient.name}: need {qty}{ingredient.default_unit}, "
+                                f"have {stock.qty_on_hand}{ingredient.default_unit}"
+                            ],
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                stock.qty_on_hand -= qty
+                stock.save(update_fields=["qty_on_hand", "updated_at"])
+                unit_cost = ingredient.unit_cost
+            else:
+                row = _compute_recipe_costing(batch.plan_item.recipe)
+                unit_cost = (
+                    row["actual_cost_per_unit"]
+                    if row["actual_cost_per_unit"] is not None
+                    else row["theoretical_cost_per_unit"]
+                )
+
+            entry = serializer.save(logged_by=request.user, unit_cost_at_time=unit_cost)
+            log_action(request.user, "LOGGED_WASTAGE", entry, detail=f"{qty} {entry.reason}")
+
+        return Response(self.get_serializer(entry).data, status=status.HTTP_201_CREATED)
+
+
 class CostingView(APIView):
     permission_classes = [IsManager]
 
@@ -354,13 +401,24 @@ class DashboardView(APIView):
         efficiency = round((actual_sum / planned_sum * 100), 1) if planned_sum else None
 
         shortfall_count = StockRequest.objects.filter(status=StockRequest.Status.PENDING).count()
+        wastage_today = WastageLog.objects.filter(logged_at__date=today)
 
         payload = {
             "batches_today_total": total,
             "batches_today_complete": complete,
             "production_efficiency_pct": efficiency,
             "ingredient_shortfall_count": shortfall_count,
+            "wastage_today_count": wastage_today.count(),
         }
+
+        is_manager_or_head_chef = (
+            request.user.role in (request.user.Role.MANAGER, request.user.Role.HEAD_CHEF)
+            or request.user.is_superuser
+        )
+        if is_manager_or_head_chef:
+            payload["wastage_today_value"] = sum(
+                (w.qty * w.unit_cost_at_time for w in wastage_today), Decimal("0")
+            )
 
         is_manager = request.user.role == request.user.Role.MANAGER or request.user.is_superuser
         if is_manager:

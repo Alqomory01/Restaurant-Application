@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from apps.accounts.models import AuditLog
+from apps.accounts.models import AuditLog, User
 
 from .models import (
     BatchProduction,
@@ -15,6 +15,7 @@ from .models import (
     Recipe,
     RecipeIngredient,
     StockRequest,
+    WastageLog,
 )
 
 
@@ -193,3 +194,44 @@ class AuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuditLog
         fields = ["id", "actor", "actor_name", "action", "model_name", "object_id", "object_repr", "detail", "created_at"]
+
+
+class WastageLogSerializer(serializers.ModelSerializer):
+    ingredient_name = serializers.CharField(source="ingredient.name", read_only=True, default=None)
+    batch_code = serializers.CharField(source="batch.batch_code", read_only=True, default=None)
+    recipe_name = serializers.CharField(source="batch.plan_item.recipe.name", read_only=True, default=None)
+    unit = serializers.SerializerMethodField()
+    logged_by_name = serializers.CharField(source="logged_by.get_full_name", read_only=True, default=None)
+    value = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WastageLog
+        fields = [
+            "id", "ingredient", "ingredient_name", "batch", "batch_code", "recipe_name",
+            "qty", "unit", "reason", "notes", "value", "logged_by", "logged_by_name", "logged_at",
+        ]
+        read_only_fields = ["logged_by", "logged_at"]
+
+    def get_unit(self, obj):
+        if obj.ingredient:
+            return obj.ingredient.default_unit
+        if obj.batch:
+            return obj.batch.plan_item.recipe.yield_unit
+        return ""
+
+    def get_value(self, obj):
+        # Cost value is manager/head-chef information, same visibility rule
+        # as recipe costing — kitchen staff can log and see what and why,
+        # not the naira figure.
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user and (user.role in (User.Role.HEAD_CHEF, User.Role.MANAGER) or user.is_superuser):
+            return str(obj.qty * obj.unit_cost_at_time)
+        return None
+
+    def validate(self, attrs):
+        ingredient = attrs.get("ingredient")
+        batch = attrs.get("batch")
+        if bool(ingredient) == bool(batch):
+            raise serializers.ValidationError("Provide exactly one of ingredient or batch, not both.")
+        return attrs

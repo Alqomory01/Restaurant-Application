@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Flame, TrendingUp, AlertTriangle, Wallet, ClipboardList, CircleCheck, PackageCheck, Activity } from "lucide-react";
+import { Flame, TrendingUp, AlertTriangle, Wallet, ClipboardList, CircleCheck, PackageCheck, Activity, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
@@ -72,7 +72,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-5 gap-3">
         <KpiTile
           icon={Flame}
           label="Batches today"
@@ -92,6 +92,13 @@ export default function DashboardPage() {
           value={dashboard.ingredient_shortfall_count}
           tone="danger"
           sub="Awaiting store dispatch"
+        />
+        <KpiTile
+          icon={Trash2}
+          label="Wastage today"
+          value={dashboard.wastage_today_count}
+          tone="warning"
+          sub={canSeeActivity && dashboard.wastage_today_value != null ? `₦${dashboard.wastage_today_value.toLocaleString()}` : "entries logged"}
         />
         {isManager ? (
           <KpiTile
