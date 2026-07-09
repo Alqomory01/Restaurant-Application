@@ -84,24 +84,24 @@ export default function RequestsPage() {
       <div className="col-span-2 space-y-4">
         <Card>
           <CardHeader title="Outgoing requests to store" action={<Badge tone="danger">{pending.length} pending</Badge>} />
-          {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
+          {error && <p className="mb-2 text-xs text-danger">{error}</p>}
           {pending.length === 0 ? (
             <EmptyState>No pending stock requests.</EmptyState>
           ) : (
             <div className="space-y-2">
               {pending.map((r) => (
-                <div key={r.id} className={`rounded-md border-l-4 p-3 text-xs ${r.urgency === "URGENT" ? "border-red-500" : r.urgency === "HIGH" ? "border-amber-500" : "border-slate-300"}`}>
+                <div key={r.id} className={`rounded-md border-l-4 p-3 text-xs ${r.urgency === "URGENT" ? "border-danger" : r.urgency === "HIGH" ? "border-warning" : "border-border-2"}`}>
                   <div className="mb-1 flex items-start justify-between">
                     <div>
-                      <div className="font-bold text-slate-800">{r.request_code}</div>
-                      <div className="text-slate-500">
+                      <div className="font-bold text-ink">{r.request_code}</div>
+                      <div className="text-ink-soft">
                         Raised by {r.raised_by_name ?? "—"} · Urgency:{" "}
                         <span className="font-semibold">{r.urgency}</span>
                       </div>
                     </div>
                     <Badge tone={urgencyTone[r.urgency]}>{r.status}</Badge>
                   </div>
-                  <div className="text-slate-700">
+                  <div className="text-ink">
                     {r.ingredient_name} — {r.qty_requested} {r.reason && `· ${r.reason}`}
                   </div>
                   <div className="mt-2">
@@ -120,7 +120,7 @@ export default function RequestsPage() {
           ) : (
             <div className="space-y-2 text-xs">
               {resolved.map((r) => (
-                <div key={r.id} className="flex items-center justify-between border-b border-slate-100 py-2 last:border-0">
+                <div key={r.id} className="flex items-center justify-between border-b border-border py-2 last:border-0">
                   <span>
                     <strong>{r.request_code}</strong> — {r.ingredient_name} · {r.qty_requested}
                   </span>
@@ -136,9 +136,9 @@ export default function RequestsPage() {
         <CardHeader title="New stock request" />
         <div className="space-y-3 text-xs">
           <div className="space-y-1">
-            <label className="font-semibold text-slate-600">Ingredient</label>
+            <label className="font-semibold text-ink-soft">Ingredient</label>
             <select
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+              className="w-full rounded-md border border-border-2 px-2 py-1.5"
               value={ingredientId}
               onChange={(e) => setIngredientId(e.target.value ? Number(e.target.value) : "")}
             >
@@ -151,18 +151,18 @@ export default function RequestsPage() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="font-semibold text-slate-600">Quantity</label>
+            <label className="font-semibold text-ink-soft">Quantity</label>
             <input
               type="number"
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+              className="w-full rounded-md border border-border-2 px-2 py-1.5"
               value={qty}
               onChange={(e) => setQty(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <label className="font-semibold text-slate-600">Urgency</label>
+            <label className="font-semibold text-ink-soft">Urgency</label>
             <select
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+              className="w-full rounded-md border border-border-2 px-2 py-1.5"
               value={urgency}
               onChange={(e) => setUrgency(e.target.value as Urgency)}
             >
@@ -172,9 +172,9 @@ export default function RequestsPage() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="font-semibold text-slate-600">Reason</label>
+            <label className="font-semibold text-ink-soft">Reason</label>
             <input
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+              className="w-full rounded-md border border-border-2 px-2 py-1.5"
               placeholder="e.g. Blocking current batch"
               value={reason}
               onChange={(e) => setReason(e.target.value)}

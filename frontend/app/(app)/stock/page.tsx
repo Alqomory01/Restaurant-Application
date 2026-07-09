@@ -26,7 +26,7 @@ export default function StockPage() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
 
   const belowCount = stock.filter((s) => s.below_threshold).length;
   const rows = showLowOnly ? stock.filter((s) => s.below_threshold) : stock;
@@ -39,13 +39,13 @@ export default function StockPage() {
           <div className="flex gap-2 text-xs">
             <button
               onClick={() => setShowLowOnly(false)}
-              className={`rounded-full border px-3 py-1 ${!showLowOnly ? "border-emerald-700 bg-emerald-50 text-emerald-700" : "border-slate-300 text-slate-600"}`}
+              className={`rounded-full border px-3 py-1 ${!showLowOnly ? "border-brand bg-brand-light text-brand" : "border-border-2 text-ink-soft"}`}
             >
               All ({stock.length})
             </button>
             <button
               onClick={() => setShowLowOnly(true)}
-              className={`rounded-full border px-3 py-1 ${showLowOnly ? "border-red-500 bg-red-50 text-red-600" : "border-slate-300 text-slate-600"}`}
+              className={`rounded-full border px-3 py-1 ${showLowOnly ? "border-danger bg-danger-bg text-danger" : "border-border-2 text-ink-soft"}`}
             >
               Below threshold ({belowCount})
             </button>
@@ -57,7 +57,7 @@ export default function StockPage() {
       ) : (
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-left text-slate-500">
+            <tr className="text-left text-ink-soft">
               <th className="pb-2">Ingredient</th>
               <th className="pb-2">On hand</th>
               <th className="pb-2">Reorder threshold</th>
@@ -68,12 +68,12 @@ export default function StockPage() {
           </thead>
           <tbody>
             {rows.map((s) => (
-              <tr key={s.id} className="border-t border-slate-100">
-                <td className="py-2 font-medium text-slate-800">{s.ingredient_name}</td>
-                <td className={`py-2 font-semibold ${s.below_threshold ? "text-red-600" : "text-emerald-700"}`}>
+              <tr key={s.id} className="border-t border-border">
+                <td className="py-2 font-medium text-ink">{s.ingredient_name}</td>
+                <td className={`py-2 font-semibold ${s.below_threshold ? "text-danger" : "text-brand"}`}>
                   {s.qty_on_hand} {s.unit}
                 </td>
-                <td className="py-2 text-slate-500">
+                <td className="py-2 text-ink-soft">
                   {s.reorder_threshold} {s.unit}
                 </td>
                 <td className="py-2">
@@ -81,10 +81,10 @@ export default function StockPage() {
                     {s.below_threshold ? "Below threshold" : "Sufficient"}
                   </Badge>
                 </td>
-                <td className="py-2 text-slate-400">{new Date(s.updated_at).toLocaleString()}</td>
+                <td className="py-2 text-ink-faint">{new Date(s.updated_at).toLocaleString()}</td>
                 <td className="py-2">
                   {s.below_threshold && (
-                    <Link href="/requests" className="text-emerald-700 hover:underline">
+                    <Link href="/requests" className="text-brand hover:underline">
                       Request more
                     </Link>
                   )}

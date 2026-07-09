@@ -64,7 +64,7 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!dashboard) return null;
 
   const isManager = user?.role === "MANAGER";
@@ -111,7 +111,7 @@ export default function DashboardPage() {
           <CardHeader
             title="Today's production plan progress"
             action={
-              <Link href="/planning" className="text-xs font-semibold text-emerald-700 hover:underline">
+              <Link href="/planning" className="text-xs font-semibold text-brand hover:underline">
                 View full plan
               </Link>
             }
@@ -121,7 +121,7 @@ export default function DashboardPage() {
           ) : (
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-left text-slate-500">
+                <tr className="text-left text-ink-soft">
                   <th className="pb-2">Recipe</th>
                   <th className="pb-2">Planned</th>
                   <th className="pb-2">Status</th>
@@ -129,9 +129,9 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {plan.items.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100">
-                    <td className="py-2 font-medium text-slate-800">{item.recipe_name}</td>
-                    <td className="py-2 text-slate-500">
+                  <tr key={item.id} className="border-t border-border">
+                    <td className="py-2 font-medium text-ink">{item.recipe_name}</td>
+                    <td className="py-2 text-ink-soft">
                       {item.planned_qty} {item.unit}
                     </td>
                     <td className="py-2">
@@ -151,9 +151,9 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2">
               {blockedItems.map((item) => (
-                <div key={item.id} className="rounded-md border-l-4 border-red-500 bg-red-50 p-2.5 text-xs">
-                  <div className="font-semibold text-red-800">{item.recipe_name} — blocked</div>
-                  <div className="text-red-600">Awaiting ingredient dispatch from store.</div>
+                <div key={item.id} className="rounded-md border-l-4 border-danger bg-danger-bg p-2.5 text-xs">
+                  <div className="font-semibold text-danger">{item.recipe_name} — blocked</div>
+                  <div className="text-danger">Awaiting ingredient dispatch from store.</div>
                 </div>
               ))}
             </div>
@@ -165,7 +165,7 @@ export default function DashboardPage() {
         <CardHeader
           title="Pending stock requests"
           action={
-            <Link href="/requests" className="text-xs font-semibold text-emerald-700 hover:underline">
+            <Link href="/requests" className="text-xs font-semibold text-brand hover:underline">
               View all
             </Link>
           }
@@ -175,10 +175,10 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-2">
             {requests.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-md border border-slate-200 p-2.5 text-xs">
+              <div key={r.id} className="flex items-center justify-between rounded-md border border-border p-2.5 text-xs">
                 <div>
-                  <span className="font-semibold text-slate-800">{r.request_code}</span>{" "}
-                  <span className="text-slate-500">
+                  <span className="font-semibold text-ink">{r.request_code}</span>{" "}
+                  <span className="text-ink-soft">
                     {r.ingredient_name} · {r.qty_requested}
                   </span>
                 </div>
@@ -197,15 +197,15 @@ export default function DashboardPage() {
           {activity.length === 0 ? (
             <EmptyState icon={Activity}>Nothing logged yet today.</EmptyState>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
               {activity.slice(0, 8).map((a) => (
                 <div key={a.id} className="flex items-center justify-between py-2 text-xs">
-                  <span className="text-slate-700">
-                    <span className="font-semibold text-slate-900">{a.actor_name ?? "System"}</span>{" "}
+                  <span className="text-ink">
+                    <span className="font-semibold text-ink">{a.actor_name ?? "System"}</span>{" "}
                     {actionVerb[a.action] ?? a.action.toLowerCase()} {a.object_repr}
-                    {a.detail && <span className="text-slate-500"> — {a.detail}</span>}
+                    {a.detail && <span className="text-ink-soft"> — {a.detail}</span>}
                   </span>
-                  <span className="shrink-0 pl-3 text-slate-400">
+                  <span className="shrink-0 pl-3 text-ink-faint">
                     {new Date(a.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>

@@ -53,7 +53,7 @@ export default function KdsPage() {
   }
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
 
   const items = plan?.items ?? [];
   const toProduce = items.filter((i) => i.status === "PENDING" || i.status === "BLOCKED");
@@ -61,11 +61,11 @@ export default function KdsPage() {
   const completed = items.filter((i) => i.status === "COMPLETE");
 
   return (
-    <div className="rounded-xl bg-slate-900 p-5 text-white">
-      <div className="mb-4 flex items-center justify-between border-b border-slate-700 pb-3">
+    <div className="rounded-xl border border-border bg-surface p-5 text-ink shadow-sm">
+      <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
         <div>
           <div className="text-lg font-bold">Kitchen display</div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-ink-faint">
             {plan ? `${plan.service_period} · ${items.length} items planned · ${completed.length} complete` : "No plan for today"}
           </div>
         </div>
@@ -77,17 +77,17 @@ export default function KdsPage() {
           {toProduce.map((item) => (
             <div
               key={item.id}
-              className={`mb-2.5 rounded-lg border-l-4 bg-slate-800 p-3 ${
-                item.status === "BLOCKED" ? "border-red-500" : "border-emerald-600"
+              className={`mb-2.5 rounded-lg border-l-4 bg-surface-2 p-3 ${
+                item.status === "BLOCKED" ? "border-danger" : "border-brand"
               }`}
             >
               <div className="text-sm font-bold">
                 {item.recipe_name} — {item.planned_qty} {item.unit}
               </div>
-              <div className="mb-2 text-xs text-slate-400">
+              <div className="mb-2 text-xs text-ink-faint">
                 {item.status === "BLOCKED" ? "Blocked — ingredients unavailable" : "All ingredients available"}
               </div>
-              <div className="mb-2 flex justify-between text-xs text-slate-300">
+              <div className="mb-2 flex justify-between text-xs text-ink-faint">
                 <span>Assigned: {item.assigned_to_name ?? "Unassigned"}</span>
                 <span>{item.scheduled_time?.slice(0, 5)}</span>
               </div>
@@ -106,12 +106,12 @@ export default function KdsPage() {
 
         <KdsColumn title="In progress" count={inProgress.length}>
           {inProgress.map((item) => (
-            <div key={item.id} className="mb-2.5 rounded-lg border-l-4 border-amber-500 bg-slate-800 p-3">
+            <div key={item.id} className="mb-2.5 rounded-lg border-l-4 border-warning bg-surface-2 p-3">
               <div className="text-sm font-bold">
                 {item.recipe_name} — {item.planned_qty} {item.unit}
               </div>
-              <div className="mb-2 text-xs text-slate-400">Batch {item.batch_code}</div>
-              <div className="flex justify-between text-xs text-slate-300">
+              <div className="mb-2 text-xs text-ink-faint">Batch {item.batch_code}</div>
+              <div className="flex justify-between text-xs text-ink-faint">
                 <span>Assigned: {item.assigned_to_name ?? "Unassigned"}</span>
                 <Badge tone="warning">In progress</Badge>
               </div>
@@ -122,13 +122,13 @@ export default function KdsPage() {
 
         <KdsColumn title="Completed today" count={completed.length}>
           {completed.map((item) => (
-            <div key={item.id} className="mb-2.5 rounded-lg border-l-4 border-emerald-500 bg-slate-800 p-3 opacity-80">
+            <div key={item.id} className="mb-2.5 rounded-lg border-l-4 border-brand bg-surface-2 p-3 opacity-80">
               <div className="text-sm font-bold">
                 {item.recipe_name} — {item.planned_qty} {item.unit}
               </div>
-              <div className="flex justify-between text-xs text-slate-300">
+              <div className="flex justify-between text-xs text-ink-faint">
                 <span>{item.assigned_to_name}</span>
-                <span className="inline-flex items-center gap-1 text-emerald-400">
+                <span className="inline-flex items-center gap-1 text-brand">
                   <CircleCheck className="h-3.5 w-3.5" strokeWidth={2} /> Done
                 </span>
               </div>
@@ -144,7 +144,7 @@ export default function KdsPage() {
 function KdsColumn({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2.5 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-400">
+      <div className="mb-2.5 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-ink-faint">
         {title} <Badge tone="neutral">{count}</Badge>
       </div>
       {children}

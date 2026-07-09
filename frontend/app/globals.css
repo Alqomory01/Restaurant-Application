@@ -1,26 +1,114 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #f8f9fa;
+  --border: #e5e7eb;
+  --border-2: #d1d5db;
+  --ink: #111827;
+  --ink-soft: #6b7280;
+  --ink-faint: #9ca3af;
+
+  --brand: #1e8449;
+  --brand-dark: #145a32;
+  --brand-light: #d5f5e3;
+
+  --success: #1e8449;
+  --success-bg: #d5f5e3;
+  --warning: #b7950b;
+  --warning-bg: #fcf3cf;
+  --danger: #c0392b;
+  --danger-bg: #fadbd8;
+  --info: #1a5276;
+  --info-bg: #d6eaf8;
+}
+
+:root.dark {
+  --bg: #0f1117;
+  --surface: #1a1d23;
+  --surface-2: #22262e;
+  --border: #2c3040;
+  --border-2: #3a3f52;
+  --ink: #f0f2f5;
+  --ink-soft: #9aa3b2;
+  --ink-faint: #555e6e;
+
+  --brand: #27ae60;
+  --brand-dark: #1e8449;
+  --brand-light: #1a3a2a;
+
+  --success: #27ae60;
+  --success-bg: #1a3a2a;
+  --warning: #f0b429;
+  --warning-bg: #3a2e0a;
+  --danger: #e55353;
+  --danger-bg: #3a1414;
+  --info: #5dade2;
+  --info-bg: #0d2a3d;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-2: var(--border-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Form elements default to the browser's own light chrome regardless of our
+   theme class, so every input/select/textarea across the app would stay
+   white-on-black-text in dark mode without this. Utility classes on
+   individual elements (e.g. a disabled field's bg-surface-2) still win —
+   this is only a lower-specificity element-selector fallback. */
+input,
+select,
+textarea {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-2);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+  border-radius: 4px;
 }

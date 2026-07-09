@@ -34,7 +34,7 @@ export default function BatchesPage() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
 
   const active = batches.filter((b) => b.status === "IN_PROGRESS");
   const history = batches.filter((b) => b.status === "COMPLETE");
@@ -57,7 +57,7 @@ export default function BatchesPage() {
         ) : (
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-500">
+              <tr className="text-left text-ink-soft">
                 <th className="pb-2">Batch ID</th>
                 <th className="pb-2">Recipe</th>
                 <th className="pb-2">Planned</th>
@@ -68,15 +68,15 @@ export default function BatchesPage() {
             </thead>
             <tbody>
               {history.map((b) => (
-                <tr key={b.id} className="border-t border-slate-100">
-                  <td className="py-2 font-mono text-slate-500">{b.batch_code}</td>
-                  <td className="py-2 font-medium text-slate-800">{b.recipe_name}</td>
-                  <td className="py-2 text-slate-600">{b.planned_qty}</td>
-                  <td className="py-2 text-slate-600">{b.actual_qty}</td>
+                <tr key={b.id} className="border-t border-border">
+                  <td className="py-2 font-mono text-ink-soft">{b.batch_code}</td>
+                  <td className="py-2 font-medium text-ink">{b.recipe_name}</td>
+                  <td className="py-2 text-ink-soft">{b.planned_qty}</td>
+                  <td className="py-2 text-ink-soft">{b.actual_qty}</td>
                   <td className="py-2">
                     <Badge tone={qualityTone[b.quality_check] ?? "neutral"}>{b.quality_check}</Badge>
                   </td>
-                  <td className="py-2 text-slate-500">
+                  <td className="py-2 text-ink-soft">
                     {b.completed_at ? new Date(b.completed_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}
                   </td>
                 </tr>
@@ -126,24 +126,24 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
       <CardHeader title={`Active batch — ${batch.batch_code} · ${batch.recipe_name}`} action={<Badge tone="warning">In progress</Badge>} />
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div className="space-y-1">
-          <label className="font-semibold text-slate-600">Planned quantity</label>
-          <input disabled value={batch.planned_qty} className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5" />
+          <label className="font-semibold text-ink-soft">Planned quantity</label>
+          <input disabled value={batch.planned_qty} className="w-full rounded-md border border-border bg-surface-2 px-2 py-1.5" />
         </div>
         <div className="space-y-1">
-          <label className="font-semibold text-slate-600">Actual quantity produced</label>
+          <label className="font-semibold text-ink-soft">Actual quantity produced</label>
           <input
             type="number"
             value={actualQty}
             onChange={(e) => setActualQty(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className="w-full rounded-md border border-border-2 px-2 py-1.5"
           />
         </div>
         <div className="space-y-1">
-          <label className="font-semibold text-slate-600">Quality check</label>
+          <label className="font-semibold text-ink-soft">Quality check</label>
           <select
             value={qualityCheck}
             onChange={(e) => setQualityCheck(e.target.value as QualityCheck)}
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className="w-full rounded-md border border-border-2 px-2 py-1.5"
           >
             <option value="PASSED">Passed</option>
             <option value="CONDITIONAL">Conditional</option>
@@ -151,20 +151,20 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
           </select>
         </div>
         <div className="col-span-3 space-y-1">
-          <label className="font-semibold text-slate-600">Quality notes</label>
+          <label className="font-semibold text-ink-soft">Quality notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5"
+            className="w-full rounded-md border border-border-2 px-2 py-1.5"
             placeholder="Any notes about this batch…"
           />
         </div>
       </div>
-      <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-800">
+      <div className="mt-3 rounded-md border border-info/25 bg-info-bg p-2.5 text-xs text-info">
         On confirmation, ingredients will be deducted from kitchen stock in one atomic transaction.
       </div>
       {error && (
-        <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+        <div className="mt-3 rounded-md border border-danger/25 bg-danger-bg p-2.5 text-xs text-danger">
           <p className="font-semibold">{error}</p>
           {shortfalls && shortfalls.length > 0 && (
             <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
@@ -174,7 +174,7 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
             </ul>
           )}
           {shortfalls && shortfalls.length > 0 && (
-            <Link href="/requests" className="mt-2 inline-flex items-center gap-1 font-semibold text-red-800 hover:underline">
+            <Link href="/requests" className="mt-2 inline-flex items-center gap-1 font-semibold text-danger hover:underline">
               Raise a stock request <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
             </Link>
           )}

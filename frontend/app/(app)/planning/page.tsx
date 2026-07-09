@@ -116,10 +116,10 @@ export default function PlanningPage() {
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {createdRequests && createdRequests.length > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+        <div className="rounded-md border border-warning/40 bg-warning-bg p-3 text-xs text-warning">
           <strong>{createdRequests.length} stock request(s) auto-created</strong> for ingredient shortfalls:{" "}
           {createdRequests.map((r) => `${r.ingredient_name} (${r.qty_requested})`).join(", ")}.
         </div>
@@ -147,7 +147,7 @@ export default function PlanningPage() {
         ) : (
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-500">
+              <tr className="text-left text-ink-soft">
                 <th className="pb-2">Recipe</th>
                 <th className="pb-2">Planned qty</th>
                 <th className="pb-2">Assigned to</th>
@@ -157,13 +157,13 @@ export default function PlanningPage() {
             </thead>
             <tbody>
               {plan.items.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100">
-                  <td className="py-2.5 font-medium text-slate-800">{item.recipe_name}</td>
-                  <td className="py-2.5 text-slate-600">
+                <tr key={item.id} className="border-t border-border">
+                  <td className="py-2.5 font-medium text-ink">{item.recipe_name}</td>
+                  <td className="py-2.5 text-ink-soft">
                     {item.planned_qty} {item.unit}
                   </td>
-                  <td className="py-2.5 text-slate-600">{item.assigned_to_name ?? "—"}</td>
-                  <td className="py-2.5 text-slate-600">{item.scheduled_time?.slice(0, 5) ?? "—"}</td>
+                  <td className="py-2.5 text-ink-soft">{item.assigned_to_name ?? "—"}</td>
+                  <td className="py-2.5 text-ink-soft">{item.scheduled_time?.slice(0, 5) ?? "—"}</td>
                   <td className="py-2.5">
                     <Badge tone={statusTone[item.status]}>{item.status.replaceAll("_", " ")}</Badge>
                   </td>
@@ -178,9 +178,9 @@ export default function PlanningPage() {
         <Card>
           <CardHeader title="New production plan" />
           <div className="mb-4 flex items-center gap-2 text-xs">
-            <label className="font-semibold text-slate-600">Service period</label>
+            <label className="font-semibold text-ink-soft">Service period</label>
             <select
-              className="rounded-md border border-slate-300 px-2 py-1"
+              className="rounded-md border border-border-2 px-2 py-1"
               value={servicePeriod}
               onChange={(e) => setServicePeriod(e.target.value)}
             >
@@ -195,7 +195,7 @@ export default function PlanningPage() {
             {draftItems.map((item, i) => (
               <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-2 text-xs">
                 <select
-                  className="rounded-md border border-slate-300 px-2 py-1"
+                  className="rounded-md border border-border-2 px-2 py-1"
                   value={item.recipe}
                   onChange={(e) => {
                     const recipeId = Number(e.target.value);
@@ -210,18 +210,18 @@ export default function PlanningPage() {
                   ))}
                 </select>
                 <input
-                  className="rounded-md border border-slate-300 px-2 py-1"
+                  className="rounded-md border border-border-2 px-2 py-1"
                   type="number"
                   value={item.planned_qty}
                   onChange={(e) => updateDraftItem(i, { planned_qty: e.target.value })}
                 />
                 <input
-                  className="rounded-md border border-slate-300 px-2 py-1"
+                  className="rounded-md border border-border-2 px-2 py-1"
                   value={item.unit}
                   onChange={(e) => updateDraftItem(i, { unit: e.target.value })}
                 />
                 <input
-                  className="rounded-md border border-slate-300 px-2 py-1"
+                  className="rounded-md border border-border-2 px-2 py-1"
                   type="time"
                   value={item.scheduled_time}
                   onChange={(e) => updateDraftItem(i, { scheduled_time: e.target.value })}
