@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Flame, TrendingUp, AlertTriangle, Wallet, ClipboardList, CircleCheck, PackageCheck, Activity } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
@@ -73,17 +74,20 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="grid grid-cols-4 gap-3">
         <KpiTile
+          icon={Flame}
           label="Batches today"
           value={`${dashboard.batches_today_complete} / ${dashboard.batches_today_total}`}
           sub={`${dashboard.batches_today_total - dashboard.batches_today_complete} batches remaining`}
         />
         <KpiTile
+          icon={TrendingUp}
           label="Production efficiency"
           value={dashboard.production_efficiency_pct != null ? `${dashboard.production_efficiency_pct}%` : "—"}
           tone="success"
           sub="Planned vs actual yield"
         />
         <KpiTile
+          icon={AlertTriangle}
           label="Ingredient shortfalls"
           value={dashboard.ingredient_shortfall_count}
           tone="danger"
@@ -91,6 +95,7 @@ export default function DashboardPage() {
         />
         {isManager ? (
           <KpiTile
+            icon={Wallet}
             label="Actual food cost"
             value={dashboard.actual_food_cost_pct != null ? `${dashboard.actual_food_cost_pct}%` : "—"}
             tone="warning"
@@ -112,7 +117,7 @@ export default function DashboardPage() {
             }
           />
           {!plan || plan.items.length === 0 ? (
-            <EmptyState>No production plan for today yet.</EmptyState>
+            <EmptyState icon={ClipboardList}>No production plan for today yet.</EmptyState>
           ) : (
             <table className="w-full text-xs">
               <thead>
@@ -142,7 +147,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Blocked batches" />
           {blockedItems.length === 0 ? (
-            <EmptyState>Nothing blocked right now.</EmptyState>
+            <EmptyState icon={CircleCheck}>Nothing blocked right now.</EmptyState>
           ) : (
             <div className="space-y-2">
               {blockedItems.map((item) => (
@@ -166,7 +171,7 @@ export default function DashboardPage() {
           }
         />
         {requests.length === 0 ? (
-          <EmptyState>No pending stock requests.</EmptyState>
+          <EmptyState icon={PackageCheck}>No pending stock requests.</EmptyState>
         ) : (
           <div className="space-y-2">
             {requests.map((r) => (
@@ -190,7 +195,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Recent activity" />
           {activity.length === 0 ? (
-            <EmptyState>Nothing logged yet today.</EmptyState>
+            <EmptyState icon={Activity}>Nothing logged yet today.</EmptyState>
           ) : (
             <div className="divide-y divide-slate-100">
               {activity.slice(0, 8).map((a) => (
@@ -200,7 +205,7 @@ export default function DashboardPage() {
                     {actionVerb[a.action] ?? a.action.toLowerCase()} {a.object_repr}
                     {a.detail && <span className="text-slate-500"> — {a.detail}</span>}
                   </span>
-                  <span className="flex-shrink-0 pl-3 text-slate-400">
+                  <span className="shrink-0 pl-3 text-slate-400">
                     {new Date(a.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowLeft, Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { CookingStep, Ingredient, Recipe, RecipeIngredient } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -67,7 +68,7 @@ export default function RecipesPage() {
         title={`Recipes (${recipes.length})`}
         action={
           <Button variant="primary" onClick={() => setMode({ kind: "edit", recipe: null })}>
-            + New recipe
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} /> New recipe
           </Button>
         }
       />
@@ -127,7 +128,9 @@ function RecipeQuickView({ recipe, onClose, onEdit }: { recipe: Recipe; onClose:
               {recipe.category} · {recipe.yield_qty} {recipe.yield_unit} per batch · {recipe.prep_time_minutes} min prep
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+            <X className="h-4 w-4" strokeWidth={2} />
+          </button>
         </div>
 
         <div className="mb-4">
@@ -260,7 +263,9 @@ function RecipeForm({
   return (
     <Card>
       <div className="mb-4 flex items-center gap-3">
-        <Button onClick={onCancel}>← Back</Button>
+        <Button onClick={onCancel}>
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} /> Back
+        </Button>
         <span className="text-sm font-bold text-slate-900">{recipe ? recipe.name : "New recipe"}</span>
       </div>
 
@@ -302,12 +307,16 @@ function RecipeForm({
                 <input type="checkbox" checked={item.is_optional} onChange={(e) => updateIngredient(i, { is_optional: e.target.checked })} />
                 Optional
               </label>
-              <Button variant="danger" onClick={() => removeIngredient(i)}>✕</Button>
+              <Button variant="danger" onClick={() => removeIngredient(i)}>
+                <X className="h-3.5 w-3.5" strokeWidth={2} />
+              </Button>
             </div>
           ))}
         </div>
         <div className="mt-2">
-          <Button onClick={addIngredient} disabled={ingredients.length === 0}>+ Add ingredient</Button>
+          <Button onClick={addIngredient} disabled={ingredients.length === 0}>
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} /> Add ingredient
+          </Button>
         </div>
       </div>
 
@@ -339,14 +348,18 @@ function RecipeForm({
                     value={step.temperature_c ?? ""}
                     onChange={(e) => updateStep(i, { temperature_c: e.target.value ? Number(e.target.value) : null })}
                   />
-                  <Button variant="danger" className="ml-auto" onClick={() => removeStep(i)}>✕</Button>
+                  <Button variant="danger" className="ml-auto" onClick={() => removeStep(i)}>
+                    <X className="h-3.5 w-3.5" strokeWidth={2} />
+                  </Button>
                 </div>
               </div>
             </div>
           ))}
         </div>
         <div className="mt-2">
-          <Button onClick={addStep}>+ Add cooking step</Button>
+          <Button onClick={addStep}>
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} /> Add cooking step
+          </Button>
         </div>
       </div>
 

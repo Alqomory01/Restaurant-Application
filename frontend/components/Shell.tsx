@@ -3,24 +3,44 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode } from "react";
+import {
+  LayoutDashboard,
+  MonitorPlay,
+  CalendarDays,
+  Flame,
+  BookOpen,
+  Wallet,
+  Package,
+  Send,
+  Trash2,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
-const NAV = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const NAV: { section: string; items: NavItem[] }[] = [
   { section: "Overview", items: [
-    { href: "/dashboard", label: "Dashboard", icon: "🏠" },
-    { href: "/kds", label: "Kitchen display", icon: "🖥️" },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/kds", label: "Kitchen display", icon: MonitorPlay },
   ] },
   { section: "Production", items: [
-    { href: "/planning", label: "Daily production plan", icon: "📅" },
-    { href: "/batches", label: "Batch tracker", icon: "🔥" },
+    { href: "/planning", label: "Daily production plan", icon: CalendarDays },
+    { href: "/batches", label: "Batch tracker", icon: Flame },
   ] },
   { section: "Recipes", items: [
-    { href: "/recipes", label: "Recipe management", icon: "📖" },
-    { href: "/costing", label: "Recipe costing", icon: "💰" },
+    { href: "/recipes", label: "Recipe management", icon: BookOpen },
+    { href: "/costing", label: "Recipe costing", icon: Wallet },
   ] },
   { section: "Inventory", items: [
-    { href: "/stock", label: "Kitchen stock", icon: "📦" },
-    { href: "/requests", label: "Stock requests", icon: "📤" },
+    { href: "/stock", label: "Kitchen stock", icon: Package },
+    { href: "/requests", label: "Stock requests", icon: Send },
+    { href: "/wastage", label: "Wastage log", icon: Trash2 },
   ] },
 ];
 
@@ -33,6 +53,7 @@ const TITLES: Record<string, string> = {
   "/costing": "Recipe costing",
   "/stock": "Kitchen stock",
   "/requests": "Stock requests",
+  "/wastage": "Wastage log",
 };
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -62,17 +83,18 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
             {group.items.map((item) => {
               const active = pathname?.startsWith(item.href);
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 border-l-2 px-4 py-2 text-[13px] transition ${
+                  className={`flex items-center gap-2.5 border-l-2 px-4 py-2 text-[13px] transition ${
                     active
                       ? "border-emerald-700 bg-emerald-50 font-semibold text-emerald-700"
                       : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <span>{item.icon}</span>
+                  <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
                   {item.label}
                 </Link>
               );
@@ -89,8 +111,8 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
             <div className="truncate text-[10px] text-slate-500">{user?.role.replaceAll("_", " ")}</div>
           </div>
-          <button onClick={handleLogout} title="Log out" className="text-xs text-slate-400 hover:text-slate-700">
-            ⎋
+          <button onClick={handleLogout} title="Log out" className="text-slate-400 transition hover:text-slate-700">
+            <LogOut className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
       </aside>

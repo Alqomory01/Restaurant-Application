@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { BatchProduction, InsufficientStockError, QualityCheck } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -173,8 +174,8 @@ function ActiveBatchCard({ batch, onComplete }: { batch: BatchProduction; onComp
             </ul>
           )}
           {shortfalls && shortfalls.length > 0 && (
-            <Link href="/requests" className="mt-2 inline-block font-semibold text-red-800 hover:underline">
-              Raise a stock request →
+            <Link href="/requests" className="mt-2 inline-flex items-center gap-1 font-semibold text-red-800 hover:underline">
+              Raise a stock request <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
             </Link>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { Lock, type LucideIcon } from "lucide-react";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -60,22 +61,38 @@ export function Button({
   );
 }
 
+const kpiToneStyles: Record<string, { text: string; iconBg: string; iconText: string }> = {
+  success: { text: "text-emerald-700", iconBg: "bg-emerald-50", iconText: "text-emerald-600" },
+  warning: { text: "text-amber-700", iconBg: "bg-amber-50", iconText: "text-amber-600" },
+  danger: { text: "text-red-700", iconBg: "bg-red-50", iconText: "text-red-600" },
+  neutral: { text: "text-slate-900", iconBg: "bg-slate-100", iconText: "text-slate-500" },
+};
+
 export function KpiTile({
   label,
   value,
   sub,
-  tone,
+  tone = "neutral",
+  icon: Icon,
 }: {
   label: string;
   value: ReactNode;
   sub?: string;
-  tone?: "success" | "warning" | "danger";
+  tone?: "success" | "warning" | "danger" | "neutral";
+  icon?: LucideIcon;
 }) {
-  const toneColor = tone === "success" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : tone === "danger" ? "text-red-700" : "text-slate-900";
+  const t = kpiToneStyles[tone];
   return (
     <Card>
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className={`mt-1 text-2xl font-bold ${toneColor}`}>{value}</div>
+      <div className="flex items-start justify-between">
+        <div className="text-xs font-medium text-slate-500">{label}</div>
+        {Icon && (
+          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.iconBg}`}>
+            <Icon className={`h-3.5 w-3.5 ${t.iconText}`} strokeWidth={2.25} />
+          </div>
+        )}
+      </div>
+      <div className={`mt-2 text-2xl font-bold ${t.text}`}>{value}</div>
       {sub && <div className="mt-1 text-xs text-slate-400">{sub}</div>}
     </Card>
   );
@@ -86,18 +103,23 @@ export function LockedTile({ label, hint }: { label: string; hint: string }) {
     <Card className="relative overflow-hidden">
       <div className="pointer-events-none select-none blur-sm">
         <div className="text-xs font-medium text-slate-500">{label}</div>
-        <div className="mt-1 text-2xl font-bold text-slate-900">••.•%</div>
+        <div className="mt-2 text-2xl font-bold text-slate-900">••.•%</div>
       </div>
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-white/60">
-        <span className="text-lg">🔒</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-white/70">
+        <Lock className="h-4 w-4 text-slate-400" strokeWidth={2} />
         <span className="text-center text-[11px] text-slate-500">{hint}</span>
       </div>
     </Card>
   );
 }
 
-export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="py-10 text-center text-sm text-slate-400">{children}</div>;
+export function EmptyState({ children, icon: Icon }: { children: ReactNode; icon?: LucideIcon }) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-slate-400">
+      {Icon && <Icon className="h-6 w-6 text-slate-300" strokeWidth={1.75} />}
+      {children}
+    </div>
+  );
 }
 
 export function Spinner() {

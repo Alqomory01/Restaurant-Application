@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import type { CostingRow, CostingStatus, CostingSummaryRow } from "@/lib/types";
@@ -31,8 +32,8 @@ export default function CostingPage() {
 function LockedCosting() {
   return (
     <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-50 text-2xl">
-        🔒
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-50">
+        <Lock className="h-6 w-6 text-slate-400" strokeWidth={1.75} />
       </div>
       <div>
         <div className="text-base font-bold text-slate-900">Recipe costing is restricted</div>

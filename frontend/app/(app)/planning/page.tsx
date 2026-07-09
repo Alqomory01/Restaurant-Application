@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { ProductionPlan, Recipe, StockRequest } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -136,7 +137,7 @@ export default function PlanningPage() {
               )
             ) : (
               <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
-                + New production plan
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} /> New production plan
               </Button>
             )
           }
@@ -226,7 +227,7 @@ export default function PlanningPage() {
                   onChange={(e) => updateDraftItem(i, { scheduled_time: e.target.value })}
                 />
                 <Button variant="danger" onClick={() => removeDraftItem(i)}>
-                  ✕
+                  <X className="h-3.5 w-3.5" strokeWidth={2} />
                 </Button>
               </div>
             ))}
@@ -234,7 +235,7 @@ export default function PlanningPage() {
 
           <div className="mt-3 flex items-center justify-between">
             <Button onClick={addDraftItem} disabled={recipes.length === 0}>
-              + Add recipe
+              <Plus className="h-3.5 w-3.5" strokeWidth={2} /> Add recipe
             </Button>
             <div className="flex gap-2">
               <Button onClick={() => setShowForm(false)}>Cancel</Button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CircleCheck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { ProductionPlan, ProductionPlanItem } from "@/lib/types";
 import { Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -127,7 +128,9 @@ export default function KdsPage() {
               </div>
               <div className="flex justify-between text-xs text-slate-300">
                 <span>{item.assigned_to_name}</span>
-                <span className="text-emerald-400">✓ Done</span>
+                <span className="inline-flex items-center gap-1 text-emerald-400">
+                  <CircleCheck className="h-3.5 w-3.5" strokeWidth={2} /> Done
+                </span>
               </div>
             </div>
           ))}
