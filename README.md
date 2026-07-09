@@ -34,7 +34,7 @@ Use the sun/moon toggle in the top bar to switch light/dark — it's saved per b
 
 ```
 backend/    Django + DRF API
-  apps/accounts/   auth (JWT), User/Branch/AuditLog models
+  apps/accounts/   auth (JWT), User/Organization/Branch/AuditLog models
   apps/kitchen/    all kitchen domain logic
 frontend/   Next.js App Router UI
   app/         routes (App Router — no src/ directory)
@@ -65,6 +65,15 @@ npm run dev
 ```
 
 Before pushing: `npx tsc --noEmit && npm run build` on the frontend, `python manage.py check` on the backend. See `CONTRIBUTING.md` for the full workflow.
+
+## Running tests
+
+```bash
+cd backend
+POSTGRES_HOST=localhost POSTGRES_PORT=5433 ./.venv/Scripts/python manage.py test apps.kitchen apps.accounts
+```
+
+27 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
 
 ## What's implemented
 
@@ -102,13 +111,18 @@ Cost figures on wastage entries follow the same visibility rule as recipe costin
 
 **Dashboard** — live KPIs (batches today, production efficiency, ingredient shortfalls, wastage today), with food-cost figures gated to Manager.
 
+## Where this is headed
+
+Mise ERP is being built as a **multi-tenant SaaS product** — sold to restaurant businesses large and small, not just run internally for one — with two planned offerings: a monthly subscription and a one-time enterprise deployment that we maintain under contract. The explicit bar to clear is Orda Africa (the honest apples-to-apples competitor) and Odoo's restaurant module (beatable on depth-for-this-vertical and simplicity, not on Odoo's total feature surface across every business domain).
+
+**Current sequencing decision:** harden the Kitchen module to production-grade before building out multi-tenancy or the other modules — prove the full product works end-to-end for one real operation first. An `Organization` model exists as a lightweight, unenforced stub (same pattern as `Branch`) so new models added between now and then don't need an expensive retrofit later, but no data is actually tenant-scoped yet.
+
 ## Known limitations / what's next
 
 Being upfront about what's still missing rather than letting it be a surprise:
 
-- **No automated tests.** The atomic stock deduction, costing math, and permission checks are all correctness-critical and currently only verified by hand.
 - **No offline/retry handling on the frontend.** A dropped connection mid-action currently just shows an error with no retry path (the backend transaction itself is safe either way).
 - **No Reports screen.** Sell-through, staff output, wastage trends over time, and exports don't exist yet.
-- **Multi-branch is a stub.** Every model has a `branch` field but nothing enforces it — fine for a single location, would need real scoping before a second branch goes live.
+- **Multi-tenancy isn't real yet.** `Organization` and `Branch` exist as structural stubs but nothing enforces data isolation between them — fine for one operation, required before this is sold to more than one.
 - **API routes aren't versioned** (`/api/kitchen/...` rather than `/api/v1/kitchen/...`).
 - FoodOps (procurement/inventory), DineFlow (POS), and the Management module don't exist yet — see `mise_system_flows.html` for the eventual full-system design this kitchen module is the first piece of.

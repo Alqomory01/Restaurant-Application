@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import AuditLog, Branch, User
+from .models import AuditLog, Branch, Organization, User
 
 
 @admin.register(User)
@@ -10,9 +10,14 @@ class MiseUserAdmin(UserAdmin):
     list_display = ("username", "email", "role", "branch", "is_staff")
 
 
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "plan", "created_at")
+
+
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
-    list_display = ("id", "name")
+    list_display = ("id", "name", "organization")
 
 
 @admin.register(AuditLog)

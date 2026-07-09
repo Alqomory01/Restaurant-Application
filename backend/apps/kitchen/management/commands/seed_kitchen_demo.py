@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from apps.accounts.models import Branch, User
+from apps.accounts.models import Branch, Organization, User
 from apps.kitchen.models import (
     BatchProduction,
     CodeSequence,
@@ -201,7 +201,10 @@ class Command(BaseCommand):
     help = "Seed demo data for the KitchenCore module: users, ingredients, recipes, stock, a live production plan."
 
     def handle(self, *args, **options):
-        branch, _ = Branch.objects.get_or_create(name="Victoria Island")
+        org, _ = Organization.objects.get_or_create(
+            name="Mise Demo Kitchen", defaults={"plan": Organization.Plan.MONTHLY}
+        )
+        branch, _ = Branch.objects.get_or_create(name="Victoria Island", defaults={"organization": org})
 
         users = self._seed_users(branch)
         ingredients = self._seed_ingredients()

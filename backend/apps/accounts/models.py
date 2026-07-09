@@ -3,9 +3,33 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+class Organization(models.Model):
+    """Stub for future multi-tenancy. Mise ERP is planned as a multi-tenant
+    SaaS product (monthly plan) plus a one-time-deployment enterprise plan —
+    see the project's business-model notes. Nothing is scoped to this yet;
+    it exists now, cheaply, so that models created between now and when
+    real tenant isolation gets built don't need an expensive retrofit to
+    add an organization_id to every table once real customer data exists.
+    """
+
+    class Plan(models.TextChoices):
+        MONTHLY = "MONTHLY", "Monthly subscription"
+        ONE_TIME_DEPLOYMENT = "ONE_TIME_DEPLOYMENT", "One-time deployment"
+
+    name = models.CharField(max_length=120)
+    plan = models.CharField(max_length=20, choices=Plan.choices, default=Plan.MONTHLY)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
 class Branch(models.Model):
     """Stub for future multi-branch support. Not yet used to scope queries."""
 
+    organization = models.ForeignKey(
+        Organization, null=True, blank=True, on_delete=models.SET_NULL, related_name="branches"
+    )
     name = models.CharField(max_length=120)
 
     def __str__(self):
