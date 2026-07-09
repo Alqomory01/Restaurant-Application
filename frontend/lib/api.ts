@@ -1,21 +1,7 @@
-import { getAccessToken, setAccessToken } from "./tokenStore";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
-
-export class ApiError extends Error {
-  status: number;
-  body: unknown;
-
-  constructor(status: number, body: unknown) {
-    const message =
-      typeof body === "object" && body !== null && "detail" in body
-        ? String((body as { detail: unknown }).detail)
-        : `Request failed with status ${status}`;
-    super(message);
-    this.status = status;
-    this.body = body;
-  }
-}
+import { store } from "@/lib/store";
+import { setAccessToken } from "@/lib/features/authSlice";
+import { BASE_URL } from "@/lib/config";
+import { ApiError } from "@/lib/apiError";
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -27,15 +13,15 @@ async function refreshAccessToken(): Promise<boolean> {
     })
       .then(async (res) => {
         if (!res.ok) {
-          setAccessToken(null);
+          store.dispatch(setAccessToken(null));
           return false;
         }
         const data = await res.json();
-        setAccessToken(data.access);
+        store.dispatch(setAccessToken(data.access));
         return true;
       })
       .catch(() => {
-        setAccessToken(null);
+        store.dispatch(setAccessToken(null));
         return false;
       })
       .finally(() => {
@@ -53,7 +39,7 @@ interface RequestOptions {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, skipAuthRetry } = options;
-  const token = getAccessToken();
+  const token = store.getState().auth.accessToken;
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
@@ -93,4 +79,4 @@ export const api = {
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-export { refreshAccessToken, BASE_URL };
+export { ApiError, BASE_URL, refreshAccessToken };

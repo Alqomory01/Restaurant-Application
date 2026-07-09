@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Flame, TrendingUp, AlertTriangle, Wallet, ClipboardList, CircleCheck, PackageCheck, Activity } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
 import { Card, CardHeader, KpiTile, LockedTile, Badge, Spinner, EmptyState } from "@/components/ui";
 

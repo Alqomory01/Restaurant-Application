@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
 import type { CostingRow, CostingStatus, CostingSummaryRow } from "@/lib/types";
 import { Card, CardHeader, Badge, Spinner, EmptyState } from "@/components/ui";

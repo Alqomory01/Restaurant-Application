@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider } from "@/context/AuthContext";
+import { StoreProvider } from "@/components/StoreProvider";
 
 export const metadata: Metadata = {
   title: "KitchenCore · Mise ERP",
@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900" suppressHydrationWarning>
-        <AuthProvider>{children}</AuthProvider>
+        <StoreProvider>{children}</StoreProvider>
       </body>
     </html>
   );
