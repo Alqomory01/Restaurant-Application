@@ -73,7 +73,7 @@ cd backend
 POSTGRES_HOST=localhost POSTGRES_PORT=5433 ./.venv/Scripts/python manage.py test apps.kitchen apps.accounts
 ```
 
-32 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, reporting rollups and role-gated money figures, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
+35 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, reporting rollups and role-gated money figures, the dashboard's day-over-day comparison figures, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
 
 ## What's implemented
 
@@ -85,7 +85,7 @@ POSTGRES_HOST=localhost POSTGRES_PORT=5433 ./.venv/Scripts/python manage.py test
 
 **Daily production plans** — submitting a plan calculates ingredient requirements across all its items and auto-raises kitchen stock requests for any shortfall, with urgency derived from how soon the batch is scheduled.
 
-**Kitchen Display System** — polling-based board to start batches from a plan (WebSocket real-time sync is intentionally deferred — see below).
+**Kitchen Display System** — polling-based board to start batches from a plan (WebSocket real-time sync is intentionally deferred — see below). Built touch-first rather than as a shrunk-down admin screen: large tap targets, a bold color-coded status bar per card, and a "running late" flag computed from the item's scheduled time — since this is the one screen actually used hands-on at a station, not from a desk.
 
 **Batch completion** — a single atomic transaction:
 - Checks every required ingredient has enough stock *before* writing anything; if not, the request fails with a 409 listing exactly what's short, instead of allowing the batch through and leaving stock negative.
@@ -109,7 +109,7 @@ Cost figures on wastage entries follow the same visibility rule as recipe costin
 
 **Audit trail** — every state-changing action (recipe created/updated/deleted, batch started/completed, plan submitted, stock request raised/fulfilled, wastage logged) is recorded with who did it and when, in an append-only log visible to Head Chef and Manager as a "Recent activity" feed on the dashboard.
 
-**Dashboard** — live KPIs (batches today, production efficiency, ingredient shortfalls, wastage today), with food-cost figures gated to Manager.
+**Dashboard** — live KPIs (batches today, production efficiency, ingredient shortfalls, wastage today), with food-cost figures gated to Manager. Efficiency, wastage, and food-cost tiles show a real day-over-day trend arrow (today vs. yesterday's actual figures — never a fabricated/projected number, and the arrow is only shown once today has its own data to compare) via a shared `TrendIndicator`/`KpiTile` in `components/ui.tsx`.
 
 **Reports** — Head Chef/Manager only, filterable by Today / Last 7 days / This month:
 - Production and utilization per recipe (planned vs actual, wasted, and a "utilization %" — produced minus wasted as a share of produced. This stands in for real sell-through until a POS module exists to say what actually sold).
@@ -123,6 +123,12 @@ Wastage cost figures (per recipe, by reason, per staff, and the overall total) f
 - Read requests (GET) retry automatically up to twice with backoff on a dropped connection — most transient wifi blips resolve themselves without the user noticing. Writes (POST/PATCH/DELETE) don't auto-retry, since replaying a request that may have already reached the server risks a duplicate; those fail fast with a clear message and the form keeps whatever the user typed, so retrying is just pressing submit again.
 - A slim banner at the top of the app (`components/ConnectionBanner.tsx`) tracks real server reachability — not just the browser's `navigator.onLine`, which can say "online" even when the wifi router has no upstream internet — by pinging a lightweight `/api/health/` endpoint on load, on the browser's `offline`/`online` events, and every 20s as a fallback. It clears itself automatically once the connection is back.
 
+**Responsive layout** — the sidebar collapses into an off-canvas drawer (hamburger toggle, backdrop, auto-closes on navigation) below the `lg` breakpoint instead of permanently eating ~200px of a tablet's width. Kitchens run tablets, not widescreen monitors.
+
+**Live alerts** — a toast layer (`components/ToastProvider.tsx`) mounted once at the root, plus `hooks/useKitchenAlerts.ts` polling the dashboard endpoint every 15s while logged in. A new pending stock request (whether auto-raised from a blocked batch or raised by hand) surfaces as a toast with a link to Stock requests, instead of only being discoverable by someone happening to open the dashboard.
+
+**Searchable pickers** — ingredient/recipe/batch `<select>` dropdowns (wastage, stock requests, recipe ingredients, production planning) were replaced with a filter-as-you-type `Combobox` (`components/Combobox.tsx`, keyboard-navigable). A plain `<select>` is fine for a handful of options; it stops being usable once a real kitchen has 100+ ingredients.
+
 ## Where this is headed
 
 Mise ERP is being built as a **multi-tenant SaaS product** — sold to restaurant businesses large and small, not just run internally for one — with two planned offerings: a monthly subscription and a one-time enterprise deployment that we maintain under contract. The explicit bar to clear is Orda Africa (the honest apples-to-apples competitor) and Odoo's restaurant module (beatable on depth-for-this-vertical and simplicity, not on Odoo's total feature surface across every business domain).
@@ -133,7 +139,8 @@ Mise ERP is being built as a **multi-tenant SaaS product** — sold to restauran
 
 Being upfront about what's still missing rather than letting it be a surprise:
 
-- **Reports has no real sell-through yet.** "Utilization" (produced minus wasted) is an honest proxy, not actual units sold — that needs a POS/DineFlow module this kitchen module doesn't have. No exports (CSV/PDF) yet either.
+- **Reports has no real sell-through yet.** "Utilization" (produced minus wasted) is an honest proxy, not actual units sold — that needs a POS/DineFlow module this kitchen module doesn't have. No exports (CSV/PDF) yet either. Reports also doesn't have trend arrows the way the Dashboard does — its date-range picker (Today / Last 7 days / This month) is the way to compare periods for now.
+- **Live alerts cover one signal.** `useKitchenAlerts` only watches for new ingredient shortfalls today — other events worth surfacing (a batch running late, a wastage spike) aren't wired up yet, though the toast layer itself is general-purpose.
 - **Multi-tenancy isn't real yet.** `Organization` and `Branch` exist as structural stubs but nothing enforces data isolation between them — fine for one operation, required before this is sold to more than one.
 - **API routes aren't versioned** (`/api/kitchen/...` rather than `/api/v1/kitchen/...`).
 - FoodOps (procurement/inventory), DineFlow (POS), and the Management module don't exist yet — see `mise_system_flows.html` for the eventual full-system design this kitchen module is the first piece of.

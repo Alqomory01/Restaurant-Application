@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import type { ProductionPlan, Recipe, StockRequest } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
+import { Combobox } from "@/components/Combobox";
 
 const statusTone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   COMPLETE: "success",
@@ -194,21 +195,14 @@ export default function PlanningPage() {
           <div className="space-y-2">
             {draftItems.map((item, i) => (
               <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-2 text-xs">
-                <select
-                  className="rounded-md border border-border-2 px-2 py-1"
+                <Combobox
                   value={item.recipe}
-                  onChange={(e) => {
-                    const recipeId = Number(e.target.value);
+                  onChange={(recipeId) => {
                     const recipe = recipes.find((r) => r.id === recipeId);
                     updateDraftItem(i, { recipe: recipeId, unit: recipe?.yield_unit ?? item.unit });
                   }}
-                >
-                  {recipes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
+                  options={recipes.map((r) => ({ value: r.id, label: r.name }))}
+                />
                 <input
                   className="rounded-md border border-border-2 px-2 py-1"
                   type="number"

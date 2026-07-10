@@ -6,6 +6,7 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { CookingStep, Ingredient, Recipe, RecipeIngredient } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
+import { Combobox } from "@/components/Combobox";
 
 const statusTone: Record<string, "success" | "neutral" | "warning"> = {
   ACTIVE: "success",
@@ -295,11 +296,11 @@ function RecipeForm({
         <div className="space-y-2">
           {items.map((item, i) => (
             <div key={i} className="grid grid-cols-[2fr_1fr_1fr_auto_auto] items-center gap-2 text-xs">
-              <select className={inputCls} value={item.ingredient} onChange={(e) => updateIngredient(i, { ingredient: Number(e.target.value) })}>
-                {ingredients.map((ing) => (
-                  <option key={ing.id} value={ing.id}>{ing.name}</option>
-                ))}
-              </select>
+              <Combobox
+                value={item.ingredient}
+                onChange={(value) => updateIngredient(i, { ingredient: value })}
+                options={ingredients.map((ing) => ({ value: ing.id, label: ing.name }))}
+              />
               <input type="number" className={inputCls} value={item.qty} onChange={(e) => updateIngredient(i, { qty: e.target.value })} />
               <div className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-ink-soft" title="Set on the ingredient itself, not per recipe">
                 {unitFor(item.ingredient) || "—"}

@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import { StoreProvider } from "@/components/StoreProvider";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
+import { ToastProvider } from "@/components/ToastProvider";
 
 export const metadata: Metadata = {
   title: "KitchenCore · Mise ERP",
@@ -34,8 +35,10 @@ export default function RootLayout({
           {THEME_INIT_SCRIPT}
         </Script>
         <StoreProvider>
-          <ConnectionBanner />
-          {children}
+          <ToastProvider>
+            <ConnectionBanner />
+            {children}
+          </ToastProvider>
         </StoreProvider>
       </body>
     </html>

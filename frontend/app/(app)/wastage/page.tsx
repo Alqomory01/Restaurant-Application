@@ -6,6 +6,7 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { BatchProduction, Ingredient, InsufficientStockError, WastageEntry, WastageReason } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
+import { Combobox } from "@/components/Combobox";
 
 const reasonLabel: Record<WastageReason, string> = {
   OVER_PRODUCTION: "Over-production",
@@ -161,31 +162,23 @@ export default function WastagePage() {
           {kind === "ingredient" ? (
             <div className="space-y-1">
               <label className="font-semibold text-ink-soft">Ingredient</label>
-              <select
-                className="w-full rounded-md border border-border-2 px-2 py-1.5"
+              <Combobox
+                placeholder="Select ingredient…"
                 value={ingredientId}
-                onChange={(e) => setIngredientId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Select ingredient…</option>
-                {ingredients.map((i) => (
-                  <option key={i.id} value={i.id}>{i.name}</option>
-                ))}
-              </select>
+                onChange={setIngredientId}
+                options={ingredients.map((i) => ({ value: i.id, label: i.name }))}
+              />
               <p className="text-ink-faint">Deducts from kitchen stock — same as it going into a dish.</p>
             </div>
           ) : (
             <div className="space-y-1">
               <label className="font-semibold text-ink-soft">Completed batch</label>
-              <select
-                className="w-full rounded-md border border-border-2 px-2 py-1.5"
+              <Combobox
+                placeholder="Select batch…"
                 value={batchId}
-                onChange={(e) => setBatchId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Select batch…</option>
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.recipe_name} — {b.batch_code}</option>
-                ))}
-              </select>
+                onChange={setBatchId}
+                options={batches.map((b) => ({ value: b.id, label: b.recipe_name, sublabel: b.batch_code }))}
+              />
               <p className="text-ink-faint">Ingredients were already deducted when the batch completed — this only records the cost of the wasted portions.</p>
             </div>
           )}

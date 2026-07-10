@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -387,29 +387,54 @@ class CostingSummaryView(APIView):
         return Response(results)
 
 
+def _day_batches_and_efficiency(date):
+    batches = BatchProduction.objects.filter(
+        plan_item__plan__service_date=date, status=BatchProduction.Status.COMPLETE
+    )
+    planned_sum = batches.aggregate(s=Sum("planned_qty"))["s"] or Decimal("0")
+    actual_sum = batches.aggregate(s=Sum("actual_qty"))["s"] or Decimal("0")
+    efficiency = round((actual_sum / planned_sum * 100), 1) if planned_sum else None
+    return batches, efficiency
+
+
+def _day_food_cost_pct(date, batches):
+    deductions = IngredientDeduction.objects.filter(
+        batch__plan_item__plan__service_date=date
+    ).select_related("batch__plan_item__recipe")
+    actual_cost_total = sum((d.actual_qty * d.unit_cost_at_time for d in deductions), Decimal("0"))
+    revenue_total = sum(
+        (b.actual_qty * b.plan_item.recipe.selling_price for b in batches.select_related("plan_item__recipe")),
+        Decimal("0"),
+    )
+    return round(actual_cost_total / revenue_total * 100, 1) if revenue_total else None
+
+
 class DashboardView(APIView):
     def get(self, request):
         today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
         items_today = ProductionPlanItem.objects.filter(plan__service_date=today)
         total = items_today.count()
         complete = items_today.filter(status=ProductionPlanItem.Status.COMPLETE).count()
 
-        batches_today = BatchProduction.objects.filter(
-            plan_item__plan__service_date=today, status=BatchProduction.Status.COMPLETE
-        )
-        planned_sum = batches_today.aggregate(s=Sum("planned_qty"))["s"] or Decimal("0")
-        actual_sum = batches_today.aggregate(s=Sum("actual_qty"))["s"] or Decimal("0")
-        efficiency = round((actual_sum / planned_sum * 100), 1) if planned_sum else None
+        batches_today, efficiency = _day_batches_and_efficiency(today)
+        batches_yesterday, efficiency_yesterday = _day_batches_and_efficiency(yesterday)
 
         shortfall_count = StockRequest.objects.filter(status=StockRequest.Status.PENDING).count()
         wastage_today = WastageLog.objects.filter(logged_at__date=today)
+        wastage_yesterday_count = WastageLog.objects.filter(logged_at__date=yesterday).count()
 
         payload = {
             "batches_today_total": total,
             "batches_today_complete": complete,
             "production_efficiency_pct": efficiency,
+            # "Yesterday" comparisons are real historical figures (not
+            # projected/fabricated) — they let the dashboard show a trend
+            # arrow instead of a bare snapshot number.
+            "production_efficiency_pct_yesterday": efficiency_yesterday,
             "ingredient_shortfall_count": shortfall_count,
             "wastage_today_count": wastage_today.count(),
+            "wastage_yesterday_count": wastage_yesterday_count,
         }
 
         is_manager_or_head_chef = (
@@ -423,17 +448,8 @@ class DashboardView(APIView):
 
         is_manager = request.user.role == request.user.Role.MANAGER or request.user.is_superuser
         if is_manager:
-            deductions_today = IngredientDeduction.objects.filter(
-                batch__plan_item__plan__service_date=today
-            ).select_related("batch__plan_item__recipe")
-            actual_cost_total = sum((d.actual_qty * d.unit_cost_at_time for d in deductions_today), Decimal("0"))
-            revenue_total = sum(
-                (b.actual_qty * b.plan_item.recipe.selling_price for b in batches_today.select_related("plan_item__recipe")),
-                Decimal("0"),
-            )
-            payload["actual_food_cost_pct"] = (
-                round(actual_cost_total / revenue_total * 100, 1) if revenue_total else None
-            )
+            payload["actual_food_cost_pct"] = _day_food_cost_pct(today, batches_today)
+            payload["actual_food_cost_pct_yesterday"] = _day_food_cost_pct(yesterday, batches_yesterday)
 
         return Response(payload)
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import {
   LayoutDashboard,
   MonitorPlay,
@@ -15,6 +15,8 @@ import {
   Trash2,
   BarChart3,
   LogOut,
+  Menu,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -66,6 +68,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Below the lg breakpoint the sidebar is an off-canvas drawer — close it
+  // automatically on every navigation so it doesn't stay open over the page.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   async function handleLogout() {
     await logout();
@@ -74,13 +83,32 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <aside className="flex w-52 flex-shrink-0 flex-col overflow-y-auto border-r border-border bg-surface">
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-shrink-0 flex-col overflow-y-auto border-r border-border bg-surface transition-transform duration-200 lg:static lg:z-auto lg:w-52 lg:translate-x-0 ${
+          navOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-4">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-sm font-bold text-white">M</div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-bold text-ink">KitchenCore</div>
             <div className="text-[10px] text-ink-soft">Kitchen Module</div>
           </div>
+          <button
+            onClick={() => setNavOpen(false)}
+            title="Close menu"
+            className="text-ink-faint transition hover:text-ink lg:hidden"
+          >
+            <X className="h-5 w-5" strokeWidth={2} />
+          </button>
         </div>
         {NAV.map((group) => (
           <div key={group.section} className="py-2.5">
@@ -124,11 +152,20 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex h-13 flex-shrink-0 items-center justify-between border-b border-border bg-surface px-6">
-          <h1 className="text-[15px] font-bold text-ink">{TITLES[pathname ?? ""] ?? ""}</h1>
+        <div className="flex h-13 flex-shrink-0 items-center justify-between border-b border-border bg-surface px-4 lg:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setNavOpen(true)}
+              title="Open menu"
+              className="text-ink-soft transition hover:text-ink lg:hidden"
+            >
+              <Menu className="h-5 w-5" strokeWidth={2} />
+            </button>
+            <h1 className="text-[15px] font-bold text-ink">{TITLES[pathname ?? ""] ?? ""}</h1>
+          </div>
           <ThemeToggle />
         </div>
-        <div className="flex-1 overflow-y-auto bg-bg p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto bg-bg p-4 lg:p-6">{children}</div>
       </div>
     </div>
   );

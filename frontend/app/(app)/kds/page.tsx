@@ -1,19 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CircleCheck } from "lucide-react";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import Link from "next/link";
+import { AlertTriangle, CircleCheck, Clock, Flame, ArrowRight } from "lucide-react";
+import { api, errorMessage } from "@/lib/api";
 import type { ProductionPlan, ProductionPlanItem } from "@/lib/types";
 import { Badge, Button, Spinner, EmptyState } from "@/components/ui";
 
 const POLL_MS = 8000;
+
+function isLate(item: ProductionPlanItem, now: Date): boolean {
+  if (!item.scheduled_time) return false;
+  const [h, m] = item.scheduled_time.split(":").map(Number);
+  const scheduled = new Date(now);
+  scheduled.setHours(h, m, 0, 0);
+  return now.getTime() > scheduled.getTime();
+}
 
 export default function KdsPage() {
   const [plan, setPlan] = useState<ProductionPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [clock, setClock] = useState("");
+  const [now, setNow] = useState(new Date());
 
   const load = useCallback(async () => {
     try {
@@ -34,9 +43,7 @@ export default function KdsPage() {
   }, [load]);
 
   useEffect(() => {
-    const tick = () => setClock(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
-    tick();
-    const interval = setInterval(tick, 1000);
+    const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -61,59 +68,101 @@ export default function KdsPage() {
   const completed = items.filter((i) => i.status === "COMPLETE");
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-5 text-ink shadow-sm">
-      <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
+    <div className="rounded-xl border border-border bg-surface p-6 text-ink shadow-sm">
+      <div className="mb-5 flex items-center justify-between border-b border-border pb-4">
         <div>
-          <div className="text-lg font-bold">Kitchen display</div>
-          <div className="text-xs text-ink-faint">
+          <div className="text-xl font-bold">Kitchen display</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-sm text-ink-faint">
+            <span className="relative flex h-2 w-2">
+              <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+            </span>
+            Live
+            <span className="text-ink-faint">·</span>
             {plan ? `${plan.service_period} · ${items.length} items planned · ${completed.length} complete` : "No plan for today"}
           </div>
         </div>
-        <div className="font-mono text-2xl font-bold">{clock}</div>
+        <div className="font-mono text-3xl font-bold tabular-nums">
+          {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <KdsColumn title="To produce" count={toProduce.length}>
-          {toProduce.map((item) => (
-            <div
-              key={item.id}
-              className={`mb-2.5 rounded-lg border-l-4 bg-surface-2 p-3 ${
-                item.status === "BLOCKED" ? "border-danger" : "border-brand"
-              }`}
-            >
-              <div className="text-sm font-bold">
-                {item.recipe_name} — {item.planned_qty} {item.unit}
-              </div>
-              <div className="mb-2 text-xs text-ink-faint">
-                {item.status === "BLOCKED" ? "Blocked — ingredients unavailable" : "All ingredients available"}
-              </div>
-              <div className="mb-2 flex justify-between text-xs text-ink-faint">
-                <span>Assigned: {item.assigned_to_name ?? "Unassigned"}</span>
-                <span>{item.scheduled_time?.slice(0, 5)}</span>
-              </div>
-              <Button
-                variant="primary"
-                className="w-full justify-center"
-                disabled={item.status === "BLOCKED" || busyId === item.id}
-                onClick={() => startBatch(item)}
+          {toProduce.map((item) => {
+            const late = item.status === "PENDING" && isLate(item, now);
+            return (
+              <div
+                key={item.id}
+                className={`mb-3 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-sm ${
+                  late ? "motion-safe:animate-pulse" : ""
+                }`}
               >
-                {item.status === "BLOCKED" ? "Blocked" : busyId === item.id ? "Starting…" : "Start production"}
-              </Button>
-            </div>
-          ))}
+                <div className={`h-1.5 ${item.status === "BLOCKED" ? "bg-danger" : late ? "bg-danger" : "bg-brand"}`} />
+                <div className="p-4">
+                  <div className="text-base font-bold">{item.recipe_name}</div>
+                  <div className="mt-0.5 text-lg font-extrabold tabular-nums text-ink-soft">
+                    {item.planned_qty} {item.unit}
+                  </div>
+                  <div className="mt-2.5">
+                    {item.status === "BLOCKED" ? (
+                      <Badge tone="danger">
+                        <AlertTriangle className="mr-1 h-3.5 w-3.5" strokeWidth={2.25} />
+                        Blocked — ingredients unavailable
+                      </Badge>
+                    ) : late ? (
+                      <Badge tone="danger">
+                        <Clock className="mr-1 h-3.5 w-3.5" strokeWidth={2.25} />
+                        Running late
+                      </Badge>
+                    ) : (
+                      <Badge tone="success">Ready</Badge>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-sm text-ink-faint">
+                    <span>{item.assigned_to_name ?? "Unassigned"}</span>
+                    <span className="font-semibold tabular-nums">{item.scheduled_time?.slice(0, 5)}</span>
+                  </div>
+                  <Button
+                    variant={item.status === "BLOCKED" ? "danger" : "primary"}
+                    size="lg"
+                    className="mt-3.5 w-full"
+                    disabled={item.status === "BLOCKED" || busyId === item.id}
+                    onClick={() => startBatch(item)}
+                  >
+                    <Flame className="h-4 w-4" strokeWidth={2.25} />
+                    {item.status === "BLOCKED" ? "Blocked" : busyId === item.id ? "Starting…" : "Start production"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
           {toProduce.length === 0 && <EmptyState>Nothing queued.</EmptyState>}
         </KdsColumn>
 
         <KdsColumn title="In progress" count={inProgress.length}>
           {inProgress.map((item) => (
-            <div key={item.id} className="mb-2.5 rounded-lg border-l-4 border-warning bg-surface-2 p-3">
-              <div className="text-sm font-bold">
-                {item.recipe_name} — {item.planned_qty} {item.unit}
-              </div>
-              <div className="mb-2 text-xs text-ink-faint">Batch {item.batch_code}</div>
-              <div className="flex justify-between text-xs text-ink-faint">
-                <span>Assigned: {item.assigned_to_name ?? "Unassigned"}</span>
-                <Badge tone="warning">In progress</Badge>
+            <div key={item.id} className="mb-3 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-sm">
+              <div className="h-1.5 bg-warning" />
+              <div className="p-4">
+                <div className="text-base font-bold">{item.recipe_name}</div>
+                <div className="mt-0.5 text-lg font-extrabold tabular-nums text-ink-soft">
+                  {item.planned_qty} {item.unit}
+                </div>
+                <div className="mt-2.5 flex items-center justify-between">
+                  <span className="font-mono text-xs text-ink-faint">{item.batch_code}</span>
+                  <Badge tone="warning">
+                    <Flame className="mr-1 h-3.5 w-3.5" strokeWidth={2.25} />
+                    Cooking
+                  </Badge>
+                </div>
+                <div className="mt-2 text-sm text-ink-faint">{item.assigned_to_name ?? "Unassigned"}</div>
+                <Link
+                  href="/batches"
+                  className="mt-3.5 flex items-center justify-center gap-1.5 rounded-xl border border-border-2 py-2.5 text-sm font-semibold text-ink-soft transition hover:bg-surface hover:text-ink"
+                >
+                  Complete this batch <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
+                </Link>
               </div>
             </div>
           ))}
@@ -122,15 +171,19 @@ export default function KdsPage() {
 
         <KdsColumn title="Completed today" count={completed.length}>
           {completed.map((item) => (
-            <div key={item.id} className="mb-2.5 rounded-lg border-l-4 border-brand bg-surface-2 p-3 opacity-80">
-              <div className="text-sm font-bold">
-                {item.recipe_name} — {item.planned_qty} {item.unit}
-              </div>
-              <div className="flex justify-between text-xs text-ink-faint">
-                <span>{item.assigned_to_name}</span>
-                <span className="inline-flex items-center gap-1 text-brand">
-                  <CircleCheck className="h-3.5 w-3.5" strokeWidth={2} /> Done
-                </span>
+            <div key={item.id} className="mb-3 overflow-hidden rounded-xl border border-border bg-surface-2 opacity-75 shadow-sm">
+              <div className="h-1.5 bg-brand" />
+              <div className="p-4">
+                <div className="text-base font-bold">{item.recipe_name}</div>
+                <div className="mt-0.5 text-lg font-extrabold tabular-nums text-ink-soft">
+                  {item.planned_qty} {item.unit}
+                </div>
+                <div className="mt-2.5 flex items-center justify-between text-sm text-ink-faint">
+                  <span>{item.assigned_to_name}</span>
+                  <span className="inline-flex items-center gap-1 font-semibold text-brand">
+                    <CircleCheck className="h-4 w-4" strokeWidth={2.25} /> Done
+                  </span>
+                </div>
               </div>
             </div>
           ))}
@@ -144,8 +197,11 @@ export default function KdsPage() {
 function KdsColumn({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2.5 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-ink-faint">
-        {title} <Badge tone="neutral">{count}</Badge>
+      <div className="mb-3 flex items-center justify-between text-sm font-bold uppercase tracking-wide text-ink-faint">
+        {title}
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-2 px-1.5 text-xs text-ink-soft">
+          {count}
+        </span>
       </div>
       {children}
     </div>

@@ -7,7 +7,14 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuditLogEntry, DashboardData, ProductionPlan, StockRequest } from "@/lib/types";
-import { Card, CardHeader, KpiTile, LockedTile, Badge, Spinner, EmptyState } from "@/components/ui";
+import { Card, CardHeader, KpiTile, LockedTile, TrendIndicator, Badge, Spinner, EmptyState } from "@/components/ui";
+
+/** Rounds a delta of two already-1dp-rounded percentages back to 1dp, since
+ * subtracting two floats coming through JSON can otherwise land on
+ * something like 4.199999999999996. */
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
 
 const actionVerb: Record<string, string> = {
   CREATED: "created",
@@ -86,6 +93,15 @@ export default function DashboardPage() {
           value={dashboard.production_efficiency_pct != null ? `${dashboard.production_efficiency_pct}%` : "—"}
           tone="success"
           sub="Planned vs actual yield"
+          trend={
+            dashboard.production_efficiency_pct != null && dashboard.production_efficiency_pct_yesterday != null ? (
+              <TrendIndicator
+                delta={round1(dashboard.production_efficiency_pct - dashboard.production_efficiency_pct_yesterday)}
+                goodDirection="up"
+                suffix="pp"
+              />
+            ) : undefined
+          }
         />
         <KpiTile
           icon={AlertTriangle}
@@ -100,6 +116,12 @@ export default function DashboardPage() {
           value={dashboard.wastage_today_count}
           tone="warning"
           sub={canSeeActivity && dashboard.wastage_today_value != null ? formatCurrency(dashboard.wastage_today_value) : "entries logged"}
+          trend={
+            <TrendIndicator
+              delta={dashboard.wastage_today_count - dashboard.wastage_yesterday_count}
+              goodDirection="down"
+            />
+          }
         />
         {isManager ? (
           <KpiTile
@@ -108,6 +130,15 @@ export default function DashboardPage() {
             value={dashboard.actual_food_cost_pct != null ? `${dashboard.actual_food_cost_pct}%` : "—"}
             tone="warning"
             sub="Today"
+            trend={
+              dashboard.actual_food_cost_pct != null && dashboard.actual_food_cost_pct_yesterday != null ? (
+                <TrendIndicator
+                  delta={round1(dashboard.actual_food_cost_pct - dashboard.actual_food_cost_pct_yesterday)}
+                  goodDirection="down"
+                  suffix="pp"
+                />
+              ) : undefined
+            }
           />
         ) : (
           <LockedTile label="Actual food cost" hint="Manager access only" />

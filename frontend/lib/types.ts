@@ -142,10 +142,14 @@ export interface DashboardData {
   batches_today_total: number;
   batches_today_complete: number;
   production_efficiency_pct: number | null;
+  /** Real prior-day figure (not projected) — powers the trend arrow. */
+  production_efficiency_pct_yesterday: number | null;
   ingredient_shortfall_count: number;
   wastage_today_count: number;
+  wastage_yesterday_count: number;
   wastage_today_value?: number | null;
   actual_food_cost_pct?: number | null;
+  actual_food_cost_pct_yesterday?: number | null;
 }
 
 export interface CostingRow {

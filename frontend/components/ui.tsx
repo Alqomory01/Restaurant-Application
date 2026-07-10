@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Lock, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, Lock, Minus, type LucideIcon } from "lucide-react";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -43,17 +43,26 @@ export function Badge({
 export function Button({
   children,
   variant = "default",
+  size = "sm",
   className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "primary" | "danger" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "default" | "primary" | "danger";
+  /** "lg" is for touch-first contexts (KDS) — bigger hit target, bigger type. */
+  size?: "sm" | "lg";
+}) {
   const variants: Record<string, string> = {
     default: "border border-border-2 bg-surface text-ink hover:bg-surface-2",
     primary: "border border-brand bg-brand text-white hover:bg-brand-dark",
     danger: "border border-danger/25 bg-danger-bg text-danger hover:bg-danger/15",
   };
+  const sizes: Record<string, string> = {
+    sm: "gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold",
+    lg: "gap-2 rounded-xl px-5 py-3.5 text-base font-bold",
+  };
   return (
     <button
-      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`inline-flex items-center justify-center transition disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {children}
@@ -68,16 +77,53 @@ const kpiToneStyles: Record<string, { text: string; iconBg: string; iconText: st
   neutral: { text: "text-ink", iconBg: "bg-surface-2", iconText: "text-ink-soft" },
 };
 
+/** A real day-over-day delta, not a decorative sparkline — `delta` should
+ * come from an actual prior-period figure the caller fetched, never be
+ * invented client-side. `goodDirection` says which way is an improvement so
+ * the arrow can be colored honestly (e.g. rising wastage is bad, rising
+ * efficiency is good). */
+export function TrendIndicator({
+  delta,
+  goodDirection = "up",
+  suffix = "",
+}: {
+  delta: number;
+  goodDirection?: "up" | "down";
+  suffix?: string;
+}) {
+  if (delta === 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-ink-faint">
+        <Minus className="h-3 w-3" strokeWidth={2.5} />
+        Flat vs yesterday
+      </span>
+    );
+  }
+  const isUp = delta > 0;
+  const isGood = goodDirection === "up" ? isUp : !isUp;
+  const Icon = isUp ? ArrowUp : ArrowDown;
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-semibold ${isGood ? "text-success" : "text-danger"}`}>
+      <Icon className="h-3 w-3" strokeWidth={2.5} />
+      {isUp ? "+" : ""}
+      {delta}
+      {suffix} vs yesterday
+    </span>
+  );
+}
+
 export function KpiTile({
   label,
   value,
   sub,
+  trend,
   tone = "neutral",
   icon: Icon,
 }: {
   label: string;
   value: ReactNode;
   sub?: string;
+  trend?: ReactNode;
   tone?: "success" | "warning" | "danger" | "neutral";
   icon?: LucideIcon;
 }) {
@@ -94,6 +140,7 @@ export function KpiTile({
       </div>
       <div className={`mt-2 text-2xl font-bold ${t.text}`}>{value}</div>
       {sub && <div className="mt-1 text-xs text-ink-faint">{sub}</div>}
+      {trend && <div className="mt-1 text-xs">{trend}</div>}
     </Card>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import type { Ingredient, StockRequest, Urgency } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
+import { Combobox } from "@/components/Combobox";
 
 const urgencyTone: Record<Urgency, "danger" | "warning" | "neutral"> = {
   URGENT: "danger",
@@ -137,18 +138,12 @@ export default function RequestsPage() {
         <div className="space-y-3 text-xs">
           <div className="space-y-1">
             <label className="font-semibold text-ink-soft">Ingredient</label>
-            <select
-              className="w-full rounded-md border border-border-2 px-2 py-1.5"
+            <Combobox
+              placeholder="Select ingredient…"
               value={ingredientId}
-              onChange={(e) => setIngredientId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Select ingredient…</option>
-              {ingredients.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
+              onChange={setIngredientId}
+              options={ingredients.map((i) => ({ value: i.id, label: i.name }))}
+            />
           </div>
           <div className="space-y-1">
             <label className="font-semibold text-ink-soft">Quantity</label>
