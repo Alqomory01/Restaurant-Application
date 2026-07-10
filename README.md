@@ -73,7 +73,7 @@ cd backend
 POSTGRES_HOST=localhost POSTGRES_PORT=5433 ./.venv/Scripts/python manage.py test apps.kitchen apps.accounts
 ```
 
-40 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, reporting rollups and role-gated money figures, the dashboard's day-over-day comparison figures, production-plan item add/edit/remove guards, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
+48 tests covering the correctness-critical paths: the atomic batch-completion transaction (success, insufficient-stock rollback, double-completion rejection, cost-drift regression, concurrent-request race), wastage logging (both the stock-deducting and cost-only paths, the exactly-one-of-ingredient-or-batch rule, role-based value visibility), recipe costing permissions and threshold math, reporting rollups and role-gated money figures, the dashboard's day-over-day comparison figures, production-plan item add/edit/remove guards (both the standalone endpoint and the diff-based whole-plan sync), diff-based recipe ingredient/step sync, the race-safe code sequence under real concurrent threads, and the full auth flow (login/refresh/logout/token-blacklist, audit log writes).
 
 ## What's implemented
 
@@ -81,13 +81,13 @@ POSTGRES_HOST=localhost POSTGRES_PORT=5433 ./.venv/Scripts/python manage.py test
 
 **Theme** — light/dark, toggled from the top bar, persisted to `localStorage`, applied before first paint (no flash of the wrong theme). One semantic color-token system (`bg`, `surface`, `ink`, `brand`, `success`/`warning`/`danger`/`info`, ...) drives every screen — including the Kitchen Display, which used to be hardcoded dark regardless of the rest of the app.
 
-**Recipes** — ingredients, cooking steps, yield/costing fields. An ingredient's unit (kg, L, g, ...) is defined once on the ingredient itself and reused everywhere — a recipe or a stock row can't silently disagree with it.
+**Recipes** — ingredients, cooking steps, yield/costing fields. An ingredient's unit (kg, L, g, ...) is defined once on the ingredient itself and reused everywhere — a recipe or a stock row can't silently disagree with it. Editing a recipe's ingredients/steps diffs against what's already there (matched by id) instead of deleting and recreating every row on every save.
 
 **Daily production plans** — a day can hold more than one plan (breakfast/lunch/dinner/all-day are independent `ProductionPlan`s), each shown as its own card. Recipes can be added to or removed from a plan while it's still in `DRAFT`; once a plan is `SUBMITTED` its items are locked (edit/delete of a plan item is rejected server-side once it has a batch, so a stray request can't desync `planned_qty` from what was actually started or cascade-delete real production history). Submitting a plan calculates ingredient requirements across all its items and auto-raises kitchen stock requests for any shortfall, with urgency derived from how soon the batch is scheduled. The Kitchen Display and Dashboard both aggregate items across *all* of today's plans, not just one.
 
 **Kitchen Display System** — polling-based board to start batches from a plan (WebSocket real-time sync is intentionally deferred — see below). Built touch-first rather than as a shrunk-down admin screen: large tap targets, a bold color-coded status bar per card, and a "running late" flag computed from the item's scheduled time — since this is the one screen actually used hands-on at a station, not from a desk.
 
-**Batch completion** — a single atomic transaction:
+**Batch completion** — a single atomic transaction, with the row lock held for the entire operation (not just the initial status check — releasing it in between is what would let two near-simultaneous completes both slip through and double-deduct stock; there's a real concurrent-threads test for this):
 - Checks every required ingredient has enough stock *before* writing anything; if not, the request fails with a 409 listing exactly what's short, instead of allowing the batch through and leaving stock negative.
 - Deducts kitchen stock and records theoretical-vs-actual ingredient usage.
 - Snapshots each ingredient's unit cost at the moment of the deduction, so a later price change doesn't retroactively rewrite historical food-cost reports.

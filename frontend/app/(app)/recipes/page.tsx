@@ -239,8 +239,12 @@ function RecipeForm({
       target_food_cost_pct: targetFc || null,
       allergen_info: allergen,
       status,
-      ingredients: items.map((i) => ({ ingredient: i.ingredient, qty: i.qty, is_optional: i.is_optional })),
+      // Existing rows keep their id so the backend updates them in place
+      // instead of deleting and recreating every ingredient/step on every
+      // save; rows without one (freshly added in this session) are created.
+      ingredients: items.map((i) => ({ id: i.id, ingredient: i.ingredient, qty: i.qty, is_optional: i.is_optional })),
       steps: steps.map((s) => ({
+        id: s.id,
         step_number: s.step_number,
         title: s.title,
         description: s.description,
