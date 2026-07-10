@@ -17,6 +17,10 @@ import {
   LogOut,
   Menu,
   X,
+  Truck,
+  ClipboardList,
+  FileText,
+  PackageSearch,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +53,13 @@ const NAV: { section: string; items: NavItem[] }[] = [
   { section: "Insights", items: [
     { href: "/reports", label: "Reports", icon: BarChart3 },
   ] },
+  { section: "Store", items: [
+    { href: "/store/dashboard", label: "Store dashboard", icon: LayoutDashboard },
+    { href: "/store/suppliers", label: "Suppliers", icon: Truck },
+    { href: "/store/items", label: "Item master", icon: PackageSearch },
+    { href: "/store/purchase-orders", label: "Purchase orders", icon: FileText },
+    { href: "/store/receiving", label: "Receiving (GRN)", icon: ClipboardList },
+  ] },
 ];
 
 const TITLES: Record<string, string> = {
@@ -62,6 +73,11 @@ const TITLES: Record<string, string> = {
   "/requests": "Stock requests",
   "/wastage": "Wastage log",
   "/reports": "Reports",
+  "/store/dashboard": "Store dashboard",
+  "/store/suppliers": "Suppliers",
+  "/store/items": "Item master",
+  "/store/purchase-orders": "Purchase orders",
+  "/store/receiving": "Goods receiving (GRN)",
 };
 
 export function Shell({ children }: { children: ReactNode }) {

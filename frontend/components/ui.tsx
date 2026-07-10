@@ -40,6 +40,36 @@ export function Badge({
   );
 }
 
+const chipToneActive: Record<string, string> = {
+  neutral: "border-brand bg-brand-light text-brand",
+  danger: "border-danger bg-danger-bg text-danger",
+  warning: "border-warning bg-warning-bg text-warning",
+};
+
+export function Chip({
+  active,
+  tone = "neutral",
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  tone?: "neutral" | "danger" | "warning";
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+        active ? chipToneActive[tone] : "border-border-2 text-ink-soft hover:bg-surface-2"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function Button({
   children,
   variant = "default",

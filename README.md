@@ -1,6 +1,6 @@
 # Mise ERP — Kitchen Module
 
-Restaurant ERP, starting with the kitchen module: recipes, daily production planning, batch tracking with atomic ingredient deduction, kitchen stock, stock requests, wastage tracking, role-gated recipe costing, reporting, an audit trail, and a live kitchen dashboard/KDS — in light or dark mode, resilient to a dropped connection.
+Restaurant ERP, starting with the kitchen module: recipes, daily production planning, batch tracking with atomic ingredient deduction, kitchen stock, stock requests, wastage tracking, role-gated recipe costing, reporting, an audit trail, and a live kitchen dashboard/KDS — in light or dark mode, resilient to a dropped connection. A frontend-only prototype of the **Store module** (suppliers, item master, purchase orders, goods receiving) sits alongside it — see *Store module* below.
 
 Stack: **Next.js** (App Router) + **Redux Toolkit** + **Django REST Framework** + **PostgreSQL**, wired together with Docker Compose.
 
@@ -37,10 +37,11 @@ backend/    Django + DRF API
   apps/accounts/   auth (JWT), User/Organization/Branch/AuditLog models
   apps/kitchen/    all kitchen domain logic
 frontend/   Next.js App Router UI
-  app/         routes (App Router — no src/ directory)
+  app/         routes (App Router — no src/ directory); app/(app)/store/* is the Store module
   components/  shared UI (Shell, ui.tsx, ThemeToggle, StoreProvider)
   hooks/       useAuth (Redux-backed)
   lib/         Redux store + slices (features/), API client, types
+  lib/foodops/ Store module's types/mock data/state — frontend-only, no backend yet
 docker-compose.yml
 ```
 
@@ -131,6 +132,17 @@ Wastage cost figures (per recipe, by reason, per staff, and the overall total) f
 
 **Searchable pickers** — ingredient/recipe/batch `<select>` dropdowns (wastage, stock requests, recipe ingredients, production planning) were replaced with a filter-as-you-type `Combobox` (`components/Combobox.tsx`, keyboard-navigable). A plain `<select>` is fine for a handful of options; it stops being usable once a real kitchen has 100+ ingredients.
 
+## Store module (frontend prototype)
+
+The procurement-to-stock loop — Suppliers → Item master → Purchase Orders → Receiving (GRN) — as a real, interactive frontend, deliberately built **without a backend yet**. Reachable via the "Store" section in the sidebar (`/store/dashboard`, `/store/suppliers`, `/store/items`, `/store/purchase-orders`, `/store/receiving`), same shell, same theme, same component library as the Kitchen module — one product, not two bolted together.
+
+- **Suppliers** — searchable/filterable list, add-supplier form. New suppliers start with no delivery-accuracy/quality score — those are meant to build up from real GRN history, not be typed in by hand.
+- **Item master** — searchable/filterable list (by category or low-stock), add-item form (buy unit vs. use unit, reorder/max levels, unit cost, shelf life, storage location).
+- **Purchase orders** — multi-line create form (supplier, priority, delivery details, line items with running total), status filter chips. Orders over ₦50,000 require Manager approval before being marked sent — under that, they're auto-sent. Approve/Reject actions are Manager-only (`useAuth()`-gated, same pattern as Kitchen).
+- **Receiving (GRN)** — pick a sent PO, record quantity received/rejected/quality/expiry per line; confirming a GRN actually updates item stock levels (received minus rejected) and marks the PO complete or partially received, with a short-delivery banner when a line comes in under what was ordered.
+
+**This is real interactive state, not static mockup data** — everything created (suppliers, items, POs, GRNs) lives in a React Context (`lib/foodops/FoodOpsContext.tsx`) seeded from `lib/foodops/mockData.ts`, so the whole loop is genuinely testable end-to-end (approve a PO, receive it, watch the item's on-hand quantity actually change) within a session. It resets on page reload — there's no backend/database behind it yet, by design, since this pass was scoped frontend-only. Turning this into the real thing means Django models mirroring `lib/foodops/types.ts`, real endpoints, and wiring the Kitchen side's stock requests to actually reach this module's dispatch flow (Dispatch and Wastage screens from the reference mockup aren't built yet either — this pass covered the core procure-to-stock loop only).
+
 ## Where this is headed
 
 Mise ERP is being built as a **multi-tenant SaaS product** — sold to restaurant businesses large and small, not just run internally for one — with two planned offerings: a monthly subscription and a one-time enterprise deployment that we maintain under contract. The explicit bar to clear is Orda Africa (the honest apples-to-apples competitor) and Odoo's restaurant module (beatable on depth-for-this-vertical and simplicity, not on Odoo's total feature surface across every business domain).
@@ -146,4 +158,4 @@ Being upfront about what's still missing rather than letting it be a surprise:
 - **Live alerts cover one signal.** `useKitchenAlerts` only watches for new ingredient shortfalls today — other events worth surfacing (a batch running late, a wastage spike) aren't wired up yet, though the toast layer itself is general-purpose.
 - **Multi-tenancy isn't real yet.** `Organization` and `Branch` exist as structural stubs but nothing enforces data isolation between them — fine for one operation, required before this is sold to more than one.
 - **API routes aren't versioned** (`/api/kitchen/...` rather than `/api/v1/kitchen/...`).
-- FoodOps (procurement/inventory), DineFlow (POS), and the Management module don't exist yet — see `mise_system_flows.html` for the eventual full-system design this kitchen module is the first piece of.
+- **The Store module has no backend.** Everything under `/store/*` is a real, interactive frontend on in-memory mock state (`lib/foodops/`) — it doesn't persist, isn't connected to Kitchen's actual stock requests, and covers only the core procure-to-stock loop (Dispatch and Wastage from the reference mockup aren't built). DineFlow (POS) and the Management module don't exist yet — see `mise_system_flows.html` for the eventual full-system design.
