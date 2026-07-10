@@ -103,6 +103,11 @@ class KitchenStockSerializer(serializers.ModelSerializer):
 
 
 class ProductionPlanItemSerializer(serializers.ModelSerializer):
+    # Optional here on purpose: ProductionPlanSerializer's nested create sets
+    # `plan` itself from the parent instance, but the standalone
+    # /kitchen/plan-items/ endpoint (adding an item to an existing plan)
+    # needs it as a real writable field.
+    plan = serializers.PrimaryKeyRelatedField(queryset=ProductionPlan.objects.all(), required=False)
     recipe_name = serializers.CharField(source="recipe.name", read_only=True)
     assigned_to_name = serializers.CharField(source="assigned_to.get_full_name", read_only=True)
     batch_id = serializers.IntegerField(source="batch.id", read_only=True, default=None)
@@ -111,9 +116,10 @@ class ProductionPlanItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductionPlanItem
         fields = [
-            "id", "recipe", "recipe_name", "planned_qty", "unit", "assigned_to",
+            "id", "plan", "recipe", "recipe_name", "planned_qty", "unit", "assigned_to",
             "assigned_to_name", "scheduled_time", "status", "batch_id", "batch_code",
         ]
+        read_only_fields = ["status"]
 
 
 class ProductionPlanSerializer(serializers.ModelSerializer):

@@ -18,7 +18,7 @@ function isLate(item: ProductionPlanItem, now: Date): boolean {
 }
 
 export default function KdsPage() {
-  const [plan, setPlan] = useState<ProductionPlan | null>(null);
+  const [plans, setPlans] = useState<ProductionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -26,9 +26,10 @@ export default function KdsPage() {
 
   const load = useCallback(async () => {
     try {
-      const plans = await api.get<{ results?: ProductionPlan[] } | ProductionPlan[]>("/kitchen/plans/");
-      const list = Array.isArray(plans) ? plans : plans.results ?? [];
-      setPlan(list[0] ?? null);
+      const res = await api.get<{ results?: ProductionPlan[] } | ProductionPlan[]>("/kitchen/plans/");
+      const list = Array.isArray(res) ? res : res.results ?? [];
+      const today = new Date().toISOString().slice(0, 10);
+      setPlans(list.filter((p) => p.service_date === today));
     } catch (err) {
       setError(errorMessage(err, "Failed to load kitchen display."));
     } finally {
@@ -62,7 +63,7 @@ export default function KdsPage() {
   if (loading) return <Spinner />;
   if (error) return <p className="text-sm text-danger">{error}</p>;
 
-  const items = plan?.items ?? [];
+  const items = plans.flatMap((p) => p.items);
   const toProduce = items.filter((i) => i.status === "PENDING" || i.status === "BLOCKED");
   const inProgress = items.filter((i) => i.status === "IN_PROGRESS");
   const completed = items.filter((i) => i.status === "COMPLETE");
@@ -79,7 +80,9 @@ export default function KdsPage() {
             </span>
             Live
             <span className="text-ink-faint">·</span>
-            {plan ? `${plan.service_period} · ${items.length} items planned · ${completed.length} complete` : "No plan for today"}
+            {plans.length > 0
+              ? `${plans.map((p) => p.service_period).join(" + ")} · ${items.length} items planned · ${completed.length} complete`
+              : "No plan for today"}
           </div>
         </div>
         <div className="font-mono text-3xl font-bold tabular-nums">

@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -136,6 +137,28 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
 class ProductionPlanItemViewSet(viewsets.ModelViewSet):
     queryset = ProductionPlanItem.objects.select_related("recipe", "assigned_to", "batch")
     serializer_class = ProductionPlanItemSerializer
+
+    def perform_create(self, serializer):
+        item = serializer.save()
+        log_action(self.request.user, "ADDED_ITEM", item, detail=f"{item.recipe.name} x{item.planned_qty}{item.unit}")
+
+    def perform_update(self, serializer):
+        # Editing an item that already has a batch (in progress or complete)
+        # would silently desync planned_qty from what was actually started —
+        # only a still-pending item is safe to change.
+        if serializer.instance.status != ProductionPlanItem.Status.PENDING:
+            raise ValidationError("Only pending items can be edited — this one is already in progress or complete.")
+        item = serializer.save()
+        log_action(self.request.user, "UPDATED_ITEM", item, detail=f"{item.recipe.name} x{item.planned_qty}{item.unit}")
+
+    def perform_destroy(self, instance):
+        # Deleting an item with a batch would cascade-delete that
+        # BatchProduction (and its IngredientDeduction rows), silently
+        # erasing real production/cost history.
+        if instance.status != ProductionPlanItem.Status.PENDING:
+            raise ValidationError("Only pending items can be removed — this one is already in progress or complete.")
+        log_action(self.request.user, "REMOVED_ITEM", instance, detail=f"{instance.recipe.name}")
+        instance.delete()
 
     @action(detail=True, methods=["post"], url_path="start-batch")
     def start_batch(self, request, pk=None):

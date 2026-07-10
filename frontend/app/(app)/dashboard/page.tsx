@@ -38,7 +38,7 @@ const statusTone: Record<string, "success" | "warning" | "danger" | "neutral"> =
 export default function DashboardPage() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [plan, setPlan] = useState<ProductionPlan | null>(null);
+  const [plans, setPlans] = useState<ProductionPlan[]>([]);
   const [requests, setRequests] = useState<StockRequest[]>([]);
   const [activity, setActivity] = useState<AuditLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -49,14 +49,15 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [dashboardData, plans, stockRequests] = await Promise.all([
+        const [dashboardData, plansRes, stockRequests] = await Promise.all([
           api.get<DashboardData>("/kitchen/dashboard/"),
           api.get<{ results?: ProductionPlan[] } | ProductionPlan[]>("/kitchen/plans/"),
           api.get<{ results?: StockRequest[] } | StockRequest[]>("/kitchen/stock-requests/?status=PENDING"),
         ]);
         setDashboard(dashboardData);
-        const planList = Array.isArray(plans) ? plans : plans.results ?? [];
-        setPlan(planList[0] ?? null);
+        const planList = Array.isArray(plansRes) ? plansRes : plansRes.results ?? [];
+        const today = new Date().toISOString().slice(0, 10);
+        setPlans(planList.filter((p) => p.service_date === today));
         const reqList = Array.isArray(stockRequests) ? stockRequests : stockRequests.results ?? [];
         setRequests(reqList.filter((r) => r.status === "PENDING"));
         if (canSeeActivity) {
@@ -76,7 +77,8 @@ export default function DashboardPage() {
   if (!dashboard) return null;
 
   const isManager = user?.role === "MANAGER";
-  const blockedItems = plan?.items.filter((i) => i.status === "BLOCKED") ?? [];
+  const planItems = plans.flatMap((p) => p.items);
+  const blockedItems = planItems.filter((i) => i.status === "BLOCKED");
 
   return (
     <div className="space-y-6">
@@ -155,7 +157,7 @@ export default function DashboardPage() {
               </Link>
             }
           />
-          {!plan || plan.items.length === 0 ? (
+          {planItems.length === 0 ? (
             <EmptyState icon={ClipboardList}>No production plan for today yet.</EmptyState>
           ) : (
             <table className="w-full text-xs">
@@ -167,7 +169,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {plan.items.map((item) => (
+                {planItems.map((item) => (
                   <tr key={item.id} className="border-t border-border">
                     <td className="py-2 font-medium text-ink">{item.recipe_name}</td>
                     <td className="py-2 text-ink-soft">
