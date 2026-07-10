@@ -1,7 +1,6 @@
 from decimal import Decimal
-
+from django.db import transaction
 from rest_framework import serializers
-
 from apps.accounts.models import AuditLog, User
 
 from .models import (
@@ -26,9 +25,8 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
     ingredient_name = serializers.CharField(source="ingredient.name", read_only=True)
-    # Read-only and always sourced from the ingredient itself — see the note
-    # on RecipeIngredient.qty in models.py for why this isn't a stored field.
     unit = serializers.CharField(source="ingredient.default_unit", read_only=True)
 
     class Meta:
@@ -37,6 +35,8 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 
 class CookingStepSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+
     class Meta:
         model = CookingStep
         fields = ["id", "step_number", "title", "description", "duration_minutes", "temperature_c"]
@@ -57,36 +57,77 @@ class RecipeSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         ingredients_data = validated_data.pop("ingredients")
         steps_data = validated_data.pop("steps")
-        recipe = Recipe.objects.create(**validated_data)
-        self._sync_ingredients(recipe, ingredients_data)
-        self._sync_steps(recipe, steps_data)
+        with transaction.atomic():
+            recipe = Recipe.objects.create(**validated_data)
+            self._sync_ingredients(recipe, ingredients_data)
+            self._sync_steps(recipe, steps_data)
         return recipe
 
     def update(self, instance, validated_data):
         ingredients_data = validated_data.pop("ingredients", None)
         steps_data = validated_data.pop("steps", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        if ingredients_data is not None:
-            instance.ingredients.all().delete()
-            self._sync_ingredients(instance, ingredients_data)
-        if steps_data is not None:
-            instance.steps.all().delete()
-            self._sync_steps(instance, steps_data)
+        with transaction.atomic():
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            if ingredients_data is not None:
+                self._sync_ingredients(instance, ingredients_data)
+            if steps_data is not None:
+                self._sync_steps(instance, steps_data)
         return instance
 
     @staticmethod
     def _sync_ingredients(recipe, ingredients_data):
-        RecipeIngredient.objects.bulk_create(
-            RecipeIngredient(recipe=recipe, **item) for item in ingredients_data
-        )
+        """Diff-based sync instead of delete-all/recreate: rows with an id
+        are updated in place, rows without one are created, and existing
+        rows missing from the payload are removed."""
+        submitted_ids = {item["id"] for item in ingredients_data if "id" in item}
+        recipe.ingredients.exclude(id__in=submitted_ids).delete()
+
+        existing = {ri.id: ri for ri in recipe.ingredients.all()}
+        to_create = []
+        for item in ingredients_data:
+            item_id = item.pop("id", None)
+            if item_id and item_id in existing:
+                ri = existing[item_id]
+                for attr, value in item.items():
+                    setattr(ri, attr, value)
+                ri.save()
+            else:
+                to_create.append(RecipeIngredient(recipe=recipe, **item))
+        if to_create:
+            RecipeIngredient.objects.bulk_create(to_create)
 
     @staticmethod
     def _sync_steps(recipe, steps_data):
-        CookingStep.objects.bulk_create(
-            CookingStep(recipe=recipe, **item) for item in steps_data
-        )
+        submitted_ids = {item["id"] for item in steps_data if "id" in item}
+        recipe.steps.exclude(id__in=submitted_ids).delete()
+
+        existing = {s.id: s for s in recipe.steps.all()}
+        updates, to_create = [], []
+        for item in steps_data:
+            item_id = item.pop("id", None)
+            if item_id and item_id in existing:
+                step = existing[item_id]
+                for attr, value in item.items():
+                    setattr(step, attr, value)
+                updates.append(step)
+            else:
+                to_create.append(CookingStep(recipe=recipe, **item))
+
+        if updates:
+            # unique_together=("recipe", "step_number") means a straight
+            # save-in-place can collide mid-loop on a reorder (step 1<->2:
+            # saving step 1 as step_number=2 while the other row still
+            # holds step_number=2). Push to negative placeholders first,
+            # then to real numbers, so no two rows ever share a
+            # step_number at the same instant.
+            for i, step in enumerate(updates):
+                CookingStep.objects.filter(pk=step.pk).update(step_number=-(i + 1))
+            for step in updates:
+                step.save(update_fields=["step_number", "title", "description", "duration_minutes", "temperature_c"])
+        if to_create:
+            CookingStep.objects.bulk_create(to_create)
 
 
 class KitchenStockSerializer(serializers.ModelSerializer):
@@ -103,6 +144,7 @@ class KitchenStockSerializer(serializers.ModelSerializer):
 
 
 class ProductionPlanItemSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
     recipe_name = serializers.CharField(source="recipe.name", read_only=True)
     assigned_to_name = serializers.CharField(source="assigned_to.get_full_name", read_only=True)
     batch_id = serializers.IntegerField(source="batch.id", read_only=True, default=None)
@@ -126,24 +168,60 @@ class ProductionPlanSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop("items")
-        plan = ProductionPlan.objects.create(**validated_data)
-        ProductionPlanItem.objects.bulk_create(
-            ProductionPlanItem(plan=plan, **item) for item in items_data
-        )
+        with transaction.atomic():
+            plan = ProductionPlan.objects.create(**validated_data)
+            ProductionPlanItem.objects.bulk_create(
+                ProductionPlanItem(plan=plan, **item) for item in items_data
+            )
         return plan
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop("items", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        if items_data is not None:
-            instance.items.all().delete()
-            ProductionPlanItem.objects.bulk_create(
-                ProductionPlanItem(plan=instance, **item) for item in items_data
-            )
+        with transaction.atomic():
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            if items_data is not None:
+                self._sync_items(instance, items_data)
         return instance
 
+    @staticmethod
+    def _sync_items(plan, items_data):
+        submitted_ids = {item["id"] for item in items_data if "id" in item}
+        removable = plan.items.exclude(id__in=submitted_ids)
+
+        # A plan item with a batch already has production history hanging
+        # off it (BatchProduction cascades). Silently dropping it here
+        # would delete that history along with the item.
+        blocked = removable.filter(batch__isnull=False)
+        if blocked.exists():
+            names = ", ".join(blocked.values_list("recipe__name", flat=True))
+            raise serializers.ValidationError(
+                f"Cannot remove plan item(s) with production already started: {names}."
+            )
+        removable.delete()
+
+        existing = {i.id: i for i in plan.items.all()}
+        to_create = []
+        for item in items_data:
+            item_id = item.pop("id", None)
+            if item_id and item_id in existing:
+                plan_item = existing[item_id]
+                if hasattr(plan_item, "batch") and (
+                    item.get("recipe") != plan_item.recipe
+                    or item.get("planned_qty") != plan_item.planned_qty
+                ):
+                    raise serializers.ValidationError(
+                        f"Cannot change recipe or quantity for '{plan_item.recipe.name}' — "
+                        "production has already started."
+                    )
+                for attr, value in item.items():
+                    setattr(plan_item, attr, value)
+                plan_item.save()
+            else:
+                to_create.append(ProductionPlanItem(plan=plan, **item))
+        if to_create:
+            ProductionPlanItem.objects.bulk_create(to_create)
 
 class IngredientDeductionSerializer(serializers.ModelSerializer):
     ingredient_name = serializers.CharField(source="ingredient.name", read_only=True)

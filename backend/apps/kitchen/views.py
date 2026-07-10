@@ -162,16 +162,22 @@ class BatchProductionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["post"])
     def complete(self, request, pk=None):
         batch = self.get_object()
-        if batch.status == BatchProduction.Status.COMPLETE:
-            return Response({"detail": "Batch already complete."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = BatchCompleteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        recipe = batch.plan_item.recipe
-        scale = data["actual_qty"] / recipe.yield_qty
+        with transaction.atomic():
+            # Re-fetch under lock. Without this, two concurrent `complete`
+            # calls can both read status=IN_PROGRESS before either commits,
+            # and both proceed to deduct stock — the batch gets completed
+            # twice over.
+            batch = BatchProduction.objects.select_for_update().get(pk=batch.pk)
+            if batch.status == BatchProduction.Status.COMPLETE:
+                return Response({"detail": "Batch already complete."}, status=status.HTTP_400_BAD_REQUEST)
 
+            recipe = batch.plan_item.recipe
+            scale = data["actual_qty"] / recipe.yield_qty
         with transaction.atomic():
             # Lock every ingredient's stock row up front and check there's enough
             # before writing anything. A kitchen can't cook with ingredients it
