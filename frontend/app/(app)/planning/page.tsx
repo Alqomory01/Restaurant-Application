@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Copy, Plus, X } from "lucide-react";
 import { api, errorMessage } from "@/lib/api";
 import type { ProductionPlan, Recipe, StockRequest } from "@/lib/types";
 import { Card, CardHeader, Badge, Button, Spinner, EmptyState } from "@/components/ui";
@@ -31,6 +31,19 @@ interface DraftItem {
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function upcomingDates(count: number): string[] {
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i + 1);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+function dayLabel(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
 }
 
 export default function PlanningPage() {
@@ -109,6 +122,43 @@ function PlanCard({ plan, recipes, onChange }: { plan: ProductionPlan; recipes: 
   const [newTime, setNewTime] = useState("09:00");
   const [savingItem, setSavingItem] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const [duplicateSubmitting, setDuplicateSubmitting] = useState(false);
+  const [duplicateResult, setDuplicateResult] = useState<{ created: number; skipped: string[] } | null>(null);
+
+  function openDuplicatePicker() {
+    setDuplicating(true);
+    setSelectedDates(new Set(upcomingDates(7)));
+    setDuplicateResult(null);
+  }
+
+  function toggleDate(date: string) {
+    setSelectedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }
+
+  async function handleDuplicate() {
+    if (selectedDates.size === 0) return;
+    setDuplicateSubmitting(true);
+    setError(null);
+    try {
+      const res = await api.post<{ created: ProductionPlan[]; skipped_dates: string[] }>(
+        `/kitchen/plans/${plan.id}/duplicate/`,
+        { dates: Array.from(selectedDates) }
+      );
+      setDuplicateResult({ created: res.created.length, skipped: res.skipped_dates });
+      setDuplicating(false);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to duplicate plan."));
+    } finally {
+      setDuplicateSubmitting(false);
+    }
+  }
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -172,6 +222,9 @@ function PlanCard({ plan, recipes, onChange }: { plan: ProductionPlan; recipes: 
         action={
           <div className="flex items-center gap-2">
             <Badge tone={isDraft ? "neutral" : "success"}>{plan.status}</Badge>
+            <Button onClick={openDuplicatePicker} disabled={plan.items.length === 0}>
+              <Copy className="h-3.5 w-3.5" strokeWidth={2} /> Duplicate to other days
+            </Button>
             {isDraft && (
               <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
                 {submitting ? "Submitting…" : "Submit plan & request ingredients"}
@@ -185,6 +238,45 @@ function PlanCard({ plan, recipes, onChange }: { plan: ProductionPlan; recipes: 
         <div className="mb-3 rounded-md border border-warning/40 bg-warning-bg p-3 text-xs text-warning">
           <strong>{createdRequests.length} stock request(s) auto-created</strong> for ingredient shortfalls:{" "}
           {createdRequests.map((r) => `${r.ingredient_name} (${r.qty_requested})`).join(", ")}.
+        </div>
+      )}
+      {duplicateResult && (
+        <div className="mb-3 rounded-md border border-info/25 bg-info-bg p-3 text-xs text-info">
+          <strong>{duplicateResult.created} plan(s) created</strong> — each is an independent draft you can adjust
+          before submitting.
+          {duplicateResult.skipped.length > 0 && (
+            <> Skipped {duplicateResult.skipped.map(dayLabel).join(", ")} — already has a {PERIOD_LABEL[plan.service_period]?.toLowerCase()} plan.</>
+          )}
+        </div>
+      )}
+      {duplicating && (
+        <div className="mb-3 rounded-md border border-border-2 bg-surface-2 p-3">
+          <div className="mb-2 text-xs font-semibold text-ink-soft">Copy this plan's recipes onto:</div>
+          <div className="flex flex-wrap gap-1.5">
+            {upcomingDates(7).map((date) => (
+              <button
+                key={date}
+                onClick={() => toggleDate(date)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                  selectedDates.has(date)
+                    ? "border-brand bg-brand-light text-brand"
+                    : "border-border-2 text-ink-soft hover:bg-surface"
+                }`}
+              >
+                {dayLabel(date)}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button onClick={() => setDuplicating(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={handleDuplicate}
+              disabled={duplicateSubmitting || selectedDates.size === 0}
+            >
+              {duplicateSubmitting ? "Duplicating…" : `Duplicate to ${selectedDates.size} day(s)`}
+            </Button>
+          </div>
         </div>
       )}
 

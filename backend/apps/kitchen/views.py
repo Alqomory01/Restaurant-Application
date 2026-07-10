@@ -133,6 +133,60 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["post"])
+    def duplicate(self, request, pk=None):
+        """Copy this plan's items onto other dates as new DRAFT plans — a
+        lightweight "plan the week" template, not a synced/linked copy:
+        each generated plan is independently editable afterward. Staff
+        assignment isn't copied (a different day likely means different
+        people); a target date that already has a plan for this service
+        period is skipped rather than overwritten or duplicated."""
+        plan = self.get_object()
+        raw_dates = request.data.get("dates")
+        if not raw_dates:
+            return Response({"detail": "Provide at least one target date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        items = list(plan.items.select_related("recipe"))
+        created = []
+        skipped = []
+
+        with transaction.atomic():
+            for raw_date in raw_dates:
+                target_date = parse_date(raw_date)
+                if not target_date:
+                    continue
+                if ProductionPlan.objects.filter(
+                    service_date=target_date, service_period=plan.service_period
+                ).exists():
+                    skipped.append(raw_date)
+                    continue
+
+                new_plan = ProductionPlan.objects.create(
+                    service_date=target_date,
+                    service_period=plan.service_period,
+                    created_by=request.user,
+                )
+                ProductionPlanItem.objects.bulk_create(
+                    ProductionPlanItem(
+                        plan=new_plan,
+                        recipe=item.recipe,
+                        planned_qty=item.planned_qty,
+                        unit=item.unit,
+                        scheduled_time=item.scheduled_time,
+                    )
+                    for item in items
+                )
+                log_action(request.user, "DUPLICATED", new_plan, detail=f"From {plan}")
+                created.append(new_plan)
+
+        return Response(
+            {
+                "created": ProductionPlanSerializer(created, many=True).data,
+                "skipped_dates": skipped,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class ProductionPlanItemViewSet(viewsets.ModelViewSet):
     queryset = ProductionPlanItem.objects.select_related("recipe", "assigned_to", "batch")
