@@ -5,7 +5,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
-
+print("DB_NAME =", os.getenv("DB_NAME"))
+print("DB_HOST =", os.getenv("DB_HOST"))
+print("DB_PORT =", os.getenv("DB_PORT"))
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-secret-key")
@@ -59,14 +61,25 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": os.environ.get("POSTGRES_DB", "mise_erp"),
+#         "USER": os.environ.get("POSTGRES_USER", "mise"),
+#         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "mise"),
+#         "HOST": os.environ.get("POSTGRES_HOST", "db"),
+#         "PORT": os.environ.get("POSTGRES_PORT", "5433"),
+#     }
+# }
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "mise_erp"),
-        "USER": os.environ.get("POSTGRES_USER", "mise"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "mise"),
-        "HOST": os.environ.get("POSTGRES_HOST", "db"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     }
 }
 
