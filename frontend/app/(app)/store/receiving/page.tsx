@@ -97,8 +97,8 @@ export default function ReceivingPage() {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-      <div className="col-span-2 space-y-4">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="space-y-4 lg:col-span-2">
         <Card>
           <CardHeader title="New goods received note" />
           <div className="mb-4 space-y-1 text-xs">
@@ -120,7 +120,7 @@ export default function ReceivingPage() {
             <EmptyState icon={Truck}>Select a purchase order above to start receiving its delivery.</EmptyState>
           ) : (
             <>
-              <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
+              <div className="mb-4 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="font-semibold text-ink-soft">Supplier delivery note / invoice no.</label>
                   <input className={inputCls} value={deliveryNote} onChange={(e) => setDeliveryNote(e.target.value)} />
@@ -136,68 +136,70 @@ export default function ReceivingPage() {
                 </div>
               </div>
 
-              <table className="mb-3 w-full text-xs">
-                <thead>
-                  <tr className="text-left text-ink-soft">
-                    <th className="pb-2">Item</th>
-                    <th className="pb-2">PO qty</th>
-                    <th className="pb-2">Qty received</th>
-                    <th className="pb-2">Qty rejected</th>
-                    <th className="pb-2">Quality (1–5)</th>
-                    <th className="pb-2">Expiry date</th>
-                    <th className="pb-2">Reject reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line, i) => (
-                    <tr key={i} className="border-t border-border">
-                      <td className="py-2 pr-2 font-medium text-ink">{itemName(line.itemId)}</td>
-                      <td className="py-2 pr-2 text-ink-soft">{line.qtyOrdered}</td>
-                      <td className="py-2 pr-2">
-                        <input
-                          type="number"
-                          className={inputCls}
-                          value={line.qtyReceived}
-                          onChange={(e) => updateLine(i, { qtyReceived: e.target.value })}
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input
-                          type="number"
-                          className={inputCls}
-                          value={line.qtyRejected}
-                          onChange={(e) => updateLine(i, { qtyRejected: e.target.value })}
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <select className={inputCls} value={line.quality} onChange={(e) => updateLine(i, { quality: e.target.value })}>
-                          <option value="5">5</option>
-                          <option value="4">4</option>
-                          <option value="3">3</option>
-                          <option value="2">2</option>
-                          <option value="1">1</option>
-                        </select>
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input
-                          type="date"
-                          className={inputCls}
-                          value={line.expiryDate}
-                          onChange={(e) => updateLine(i, { expiryDate: e.target.value })}
-                        />
-                      </td>
-                      <td className="py-2">
-                        <input
-                          className={inputCls}
-                          value={line.rejectReason}
-                          onChange={(e) => updateLine(i, { rejectReason: e.target.value })}
-                          placeholder={Number(line.qtyRejected) > 0 ? "Required" : "—"}
-                        />
-                      </td>
+              <div className="mb-3 overflow-x-auto">
+                <table className="w-full min-w-[720px] text-xs">
+                  <thead>
+                    <tr className="text-left text-ink-soft">
+                      <th className="pb-2">Item</th>
+                      <th className="pb-2">PO qty</th>
+                      <th className="pb-2">Qty received</th>
+                      <th className="pb-2">Qty rejected</th>
+                      <th className="pb-2">Quality (1–5)</th>
+                      <th className="pb-2">Expiry date</th>
+                      <th className="pb-2">Reject reason</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, i) => (
+                      <tr key={i} className="border-t border-border">
+                        <td className="py-2 pr-2 font-medium text-ink">{itemName(line.itemId)}</td>
+                        <td className="py-2 pr-2 text-ink-soft">{line.qtyOrdered}</td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            className={inputCls}
+                            value={line.qtyReceived}
+                            onChange={(e) => updateLine(i, { qtyReceived: e.target.value })}
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            className={inputCls}
+                            value={line.qtyRejected}
+                            onChange={(e) => updateLine(i, { qtyRejected: e.target.value })}
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <select className={inputCls} value={line.quality} onChange={(e) => updateLine(i, { quality: e.target.value })}>
+                            <option value="5">5</option>
+                            <option value="4">4</option>
+                            <option value="3">3</option>
+                            <option value="2">2</option>
+                            <option value="1">1</option>
+                          </select>
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="date"
+                            className={inputCls}
+                            value={line.expiryDate}
+                            onChange={(e) => updateLine(i, { expiryDate: e.target.value })}
+                          />
+                        </td>
+                        <td className="py-2">
+                          <input
+                            className={inputCls}
+                            value={line.rejectReason}
+                            onChange={(e) => updateLine(i, { rejectReason: e.target.value })}
+                            placeholder={Number(line.qtyRejected) > 0 ? "Required" : "—"}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {shortfalls.length > 0 && (
                 <div className="mb-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning-bg p-3 text-xs text-warning">
@@ -249,26 +251,28 @@ export default function ReceivingPage() {
           {grns.length === 0 ? (
             <EmptyState>No goods received yet.</EmptyState>
           ) : (
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-ink-soft">
-                  <th className="pb-2">GRN</th>
-                  <th className="pb-2">Supplier</th>
-                  <th className="pb-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grns.slice(0, 6).map((g) => (
-                  <tr key={g.id} className="border-t border-border">
-                    <td className="py-2 font-mono text-ink-soft">{g.code}</td>
-                    <td className="py-2 text-ink">{supplierName(g.supplierId)}</td>
-                    <td className="py-2">
-                      <Badge tone={grnStatusTone[g.status]}>{g.status.replaceAll("_", " ")}</Badge>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-ink-soft">
+                    <th className="pb-2">GRN</th>
+                    <th className="pb-2">Supplier</th>
+                    <th className="pb-2">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {grns.slice(0, 6).map((g) => (
+                    <tr key={g.id} className="border-t border-border">
+                      <td className="py-2 font-mono text-ink-soft">{g.code}</td>
+                      <td className="py-2 text-ink">{supplierName(g.supplierId)}</td>
+                      <td className="py-2">
+                        <Badge tone={grnStatusTone[g.status]}>{g.status.replaceAll("_", " ")}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
 

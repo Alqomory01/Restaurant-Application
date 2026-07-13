@@ -58,6 +58,7 @@ export interface PurchaseOrder {
   notes: string;
   raisedBy: string;
   raisedAt: string;
+  rejectionReason?: string;
   lineItems: POLineItem[];
 }
 

@@ -37,10 +37,12 @@ interface FoodOpsContextValue {
   purchaseOrders: PurchaseOrder[];
   grns: GRN[];
   addSupplier: (input: Omit<Supplier, "id">) => void;
+  updateSupplier: (id: number, input: Omit<Supplier, "id">) => void;
   addItem: (input: Omit<StoreItem, "id">) => void;
+  updateItem: (id: number, input: Omit<StoreItem, "id">) => void;
   createPurchaseOrder: (input: NewPOInput) => PurchaseOrder;
   approvePurchaseOrder: (id: number) => void;
-  rejectPurchaseOrder: (id: number) => void;
+  rejectPurchaseOrder: (id: number, reason: string) => void;
   createGRN: (input: NewGRNInput) => GRN;
 }
 
@@ -58,8 +60,16 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
     setSuppliers((prev) => [...prev, { ...input, id: generateId() }]);
   };
 
+  const updateSupplier = (id: number, input: Omit<Supplier, "id">) => {
+    setSuppliers((prev) => prev.map((s) => (s.id === id ? { ...input, id } : s)));
+  };
+
   const addItem = (input: Omit<StoreItem, "id">) => {
     setItems((prev) => [...prev, { ...input, id: generateId() }]);
+  };
+
+  const updateItem = (id: number, input: Omit<StoreItem, "id">) => {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...input, id } : i)));
   };
 
   const createPurchaseOrder = (input: NewPOInput): PurchaseOrder => {
@@ -86,8 +96,8 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
     setPurchaseOrders((prev) => prev.map((po) => (po.id === id ? { ...po, status: "SENT" } : po)));
   };
 
-  const rejectPurchaseOrder = (id: number) => {
-    setPurchaseOrders((prev) => prev.map((po) => (po.id === id ? { ...po, status: "REJECTED" } : po)));
+  const rejectPurchaseOrder = (id: number, reason: string) => {
+    setPurchaseOrders((prev) => prev.map((po) => (po.id === id ? { ...po, status: "REJECTED", rejectionReason: reason } : po)));
   };
 
   const createGRN = (input: NewGRNInput): GRN => {
@@ -138,7 +148,9 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
       purchaseOrders,
       grns,
       addSupplier,
+      updateSupplier,
       addItem,
+      updateItem,
       createPurchaseOrder,
       approvePurchaseOrder,
       rejectPurchaseOrder,

@@ -190,6 +190,22 @@ export function LockedTile({ label, hint }: { label: string; hint: string }) {
   );
 }
 
+/** Full-page "you can't be here" state — for a whole restricted screen, not
+ * just a hidden figure (that's LockedTile). */
+export function RestrictedAccess({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-border bg-surface-2">
+        <Lock className="h-6 w-6 text-ink-faint" strokeWidth={1.75} />
+      </div>
+      <div>
+        <div className="text-base font-bold text-ink">{title}</div>
+        <div className="mx-auto mt-1 max-w-sm text-sm text-ink-soft">{message}</div>
+      </div>
+    </div>
+  );
+}
+
 export function EmptyState({ children, icon: Icon }: { children: ReactNode; icon?: LucideIcon }) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-ink-faint">

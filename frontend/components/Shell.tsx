@@ -25,11 +25,18 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import type { Role } from "@/lib/types";
 
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Omit to show to every role (matches Kitchen's existing model, where
+   * e.g. Costing/Reports stay visible but lock their own content per role).
+   * Store is a genuinely separate department — Kitchen staff have no
+   * business reason to even see it exists, so its items are hidden
+   * outright rather than shown-then-locked. */
+  roles?: Role[];
 }
 
 const NAV: { section: string; items: NavItem[] }[] = [
@@ -54,11 +61,11 @@ const NAV: { section: string; items: NavItem[] }[] = [
     { href: "/reports", label: "Reports", icon: BarChart3 },
   ] },
   { section: "Store", items: [
-    { href: "/store/dashboard", label: "Store dashboard", icon: LayoutDashboard },
-    { href: "/store/suppliers", label: "Suppliers", icon: Truck },
-    { href: "/store/items", label: "Item master", icon: PackageSearch },
-    { href: "/store/purchase-orders", label: "Purchase orders", icon: FileText },
-    { href: "/store/receiving", label: "Receiving (GRN)", icon: ClipboardList },
+    { href: "/store/dashboard", label: "Store dashboard", icon: LayoutDashboard, roles: ["MANAGER"] },
+    { href: "/store/suppliers", label: "Suppliers", icon: Truck, roles: ["MANAGER"] },
+    { href: "/store/items", label: "Item master", icon: PackageSearch, roles: ["MANAGER"] },
+    { href: "/store/purchase-orders", label: "Purchase orders", icon: FileText, roles: ["MANAGER"] },
+    { href: "/store/receiving", label: "Receiving (GRN)", icon: ClipboardList, roles: ["MANAGER"] },
   ] },
 ];
 
@@ -126,31 +133,35 @@ export function Shell({ children }: { children: ReactNode }) {
             <X className="h-5 w-5" strokeWidth={2} />
           </button>
         </div>
-        {NAV.map((group) => (
-          <div key={group.section} className="py-2.5">
-            <div className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-faint">
-              {group.section}
+        {NAV.map((group) => {
+          const visibleItems = group.items.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={group.section} className="py-2.5">
+              <div className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-faint">
+                {group.section}
+              </div>
+              {visibleItems.map((item) => {
+                const active = pathname?.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2.5 border-l-2 px-4 py-2 text-[13px] transition ${
+                      active
+                        ? "border-brand bg-brand-light font-semibold text-brand"
+                        : "border-transparent text-ink-soft hover:bg-surface-2 hover:text-ink"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
-            {group.items.map((item) => {
-              const active = pathname?.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2.5 border-l-2 px-4 py-2 text-[13px] transition ${
-                    active
-                      ? "border-brand bg-brand-light font-semibold text-brand"
-                      : "border-transparent text-ink-soft hover:bg-surface-2 hover:text-ink"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+          );
+        })}
         <div className="mt-auto flex items-center gap-2.5 border-t border-border px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-light text-xs font-bold text-brand">
             {(user?.first_name?.[0] ?? "") + (user?.last_name?.[0] ?? "")}
