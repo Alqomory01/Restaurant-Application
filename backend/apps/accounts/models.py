@@ -41,6 +41,7 @@ class User(AbstractUser):
         HEAD_CHEF = "HEAD_CHEF", "Head Chef"
         KITCHEN_STAFF = "KITCHEN_STAFF", "Kitchen Staff"
         MANAGER = "MANAGER", "Manager"
+        STORE_KEEPER = "STORE_KEEPER", "Store Keeper"
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.KITCHEN_STAFF)
     branch = models.ForeignKey(Branch, null=True, blank=True, on_delete=models.SET_NULL, related_name="users")

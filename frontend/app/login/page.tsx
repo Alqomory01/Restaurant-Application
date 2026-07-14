@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
+    if (!loading && user) router.replace(user.role === "STORE_KEEPER" ? "/store/dashboard" : "/dashboard");
   }, [loading, user, router]);
 
   async function handleSubmit(e: FormEvent) {
@@ -23,7 +23,8 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(username, password);
-      router.replace("/dashboard");
+      // Redirect happens in the effect above once `user` reflects the
+      // freshly logged-in role — no need to duplicate it here.
     } catch (err) {
       setError(errorMessage(err, "Login failed. Check your credentials."));
     } finally {
@@ -76,7 +77,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="mt-4 text-center text-xs text-ink-faint">
-          Demo users: head_chef · kitchen_staff · manager — password MiseDemo123!
+          Demo users: head_chef · kitchen_staff · manager · store_keeper — password MiseDemo123!
         </p>
       </div>
     </div>

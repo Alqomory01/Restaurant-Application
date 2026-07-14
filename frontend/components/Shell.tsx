@@ -31,41 +31,50 @@ interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Omit to show to every role (matches Kitchen's existing model, where
-   * e.g. Costing/Reports stay visible but lock their own content per role).
-   * Store is a genuinely separate department — Kitchen staff have no
-   * business reason to even see it exists, so its items are hidden
-   * outright rather than shown-then-locked. */
+  /** Department-level access (which nav sections a role even sees) is an
+   * allow-list here — omit to show to every role. Within a department,
+   * finer-grained gates (e.g. Costing/Reports showing all Kitchen roles but
+   * locking their own money figures per role) are handled by the page
+   * itself, not here. Kitchen and Store are separate departments — Store
+   * Keeper has no business reason to see production data, and Kitchen
+   * roles have none to see supplier pricing, so those sections are hidden
+   * outright for the other side rather than shown-then-locked. */
   roles?: Role[];
 }
 
+// Kitchen roles: everyone who isn't Store-only. Store Keeper has no more
+// business reason to see kitchen production data than Kitchen Staff has to
+// see supplier pricing — same "hide outright" reasoning as the Store section.
+const KITCHEN_ROLES: Role[] = ["HEAD_CHEF", "KITCHEN_STAFF", "MANAGER"];
+const STORE_ROLES: Role[] = ["MANAGER", "STORE_KEEPER"];
+
 const NAV: { section: string; items: NavItem[] }[] = [
   { section: "Overview", items: [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/kds", label: "Kitchen display", icon: MonitorPlay },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: KITCHEN_ROLES },
+    { href: "/kds", label: "Kitchen display", icon: MonitorPlay, roles: KITCHEN_ROLES },
   ] },
   { section: "Production", items: [
-    { href: "/planning", label: "Daily production plan", icon: CalendarDays },
-    { href: "/batches", label: "Batch tracker", icon: Flame },
+    { href: "/planning", label: "Daily production plan", icon: CalendarDays, roles: KITCHEN_ROLES },
+    { href: "/batches", label: "Batch tracker", icon: Flame, roles: KITCHEN_ROLES },
   ] },
   { section: "Recipes", items: [
-    { href: "/recipes", label: "Recipe management", icon: BookOpen },
-    { href: "/costing", label: "Recipe costing", icon: Wallet },
+    { href: "/recipes", label: "Recipe management", icon: BookOpen, roles: KITCHEN_ROLES },
+    { href: "/costing", label: "Recipe costing", icon: Wallet, roles: KITCHEN_ROLES },
   ] },
   { section: "Inventory", items: [
-    { href: "/stock", label: "Kitchen stock", icon: Package },
-    { href: "/requests", label: "Stock requests", icon: Send },
-    { href: "/wastage", label: "Wastage log", icon: Trash2 },
+    { href: "/stock", label: "Kitchen stock", icon: Package, roles: KITCHEN_ROLES },
+    { href: "/requests", label: "Stock requests", icon: Send, roles: KITCHEN_ROLES },
+    { href: "/wastage", label: "Wastage log", icon: Trash2, roles: KITCHEN_ROLES },
   ] },
   { section: "Insights", items: [
-    { href: "/reports", label: "Reports", icon: BarChart3 },
+    { href: "/reports", label: "Reports", icon: BarChart3, roles: KITCHEN_ROLES },
   ] },
   { section: "Store", items: [
-    { href: "/store/dashboard", label: "Store dashboard", icon: LayoutDashboard, roles: ["MANAGER"] },
-    { href: "/store/suppliers", label: "Suppliers", icon: Truck, roles: ["MANAGER"] },
-    { href: "/store/items", label: "Item master", icon: PackageSearch, roles: ["MANAGER"] },
-    { href: "/store/purchase-orders", label: "Purchase orders", icon: FileText, roles: ["MANAGER"] },
-    { href: "/store/receiving", label: "Receiving (GRN)", icon: ClipboardList, roles: ["MANAGER"] },
+    { href: "/store/dashboard", label: "Store dashboard", icon: LayoutDashboard, roles: STORE_ROLES },
+    { href: "/store/suppliers", label: "Suppliers", icon: Truck, roles: STORE_ROLES },
+    { href: "/store/items", label: "Item master", icon: PackageSearch, roles: STORE_ROLES },
+    { href: "/store/purchase-orders", label: "Purchase orders", icon: FileText, roles: STORE_ROLES },
+    { href: "/store/receiving", label: "Receiving (GRN)", icon: ClipboardList, roles: STORE_ROLES },
   ] },
 ];
 

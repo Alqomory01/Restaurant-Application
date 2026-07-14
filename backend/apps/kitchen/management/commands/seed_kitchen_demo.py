@@ -226,6 +226,7 @@ class Command(BaseCommand):
             ("head_chef", "Bola", "Adeyemi", User.Role.HEAD_CHEF),
             ("kitchen_staff", "Tunde", "Kalu", User.Role.KITCHEN_STAFF),
             ("manager", "Olu", "Eze", User.Role.MANAGER),
+            ("store_keeper", "Akin", "Okonkwo", User.Role.STORE_KEEPER),
         ]
         for username, first, last, role in specs:
             user, created = User.objects.get_or_create(

@@ -32,6 +32,9 @@ class KitchenTestCase(APITestCase):
         self.kitchen_staff = User.objects.create_user(
             "kitchen_staff_t", password="pw", role=User.Role.KITCHEN_STAFF, branch=branch
         )
+        self.store_keeper = User.objects.create_user(
+            "store_keeper_t", password="pw", role=User.Role.STORE_KEEPER, branch=branch
+        )
 
         self.ingredient = Ingredient.objects.create(
             name="Test Flour", default_unit="kg", unit_cost=Decimal("100.00")

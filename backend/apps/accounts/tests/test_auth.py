@@ -70,6 +70,17 @@ class AuthFlowTests(APITestCase):
         self.assertEqual(res.data["username"], "chef")
         self.assertEqual(res.data["role"], "HEAD_CHEF")
 
+    def test_store_keeper_can_log_in_and_role_round_trips(self):
+        User.objects.create_user("keeper", password="correct-horse", role=User.Role.STORE_KEEPER)
+        login_res = self.client.post(
+            "/api/auth/login", {"username": "keeper", "password": "correct-horse"}, format="json"
+        )
+        self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(login_res.data["user"]["role"], "STORE_KEEPER")
+
+        res = self.client.get("/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {login_res.data['access']}")
+        self.assertEqual(res.data["role"], "STORE_KEEPER")
+
 
 class AuditLogTests(APITestCase):
     def test_log_action_records_actor_and_object(self):
