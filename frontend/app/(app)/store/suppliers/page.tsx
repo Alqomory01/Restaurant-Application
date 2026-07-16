@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Pencil, Plus, Search } from "lucide-react";
+import { errorMessage } from "@/lib/api";
 import { useFoodOps } from "@/lib/foodops/FoodOpsContext";
 import type { Supplier, SupplierStatus } from "@/lib/foodops/types";
 import { Card, Badge, Button, Chip, EmptyState } from "@/components/ui";
@@ -34,8 +35,8 @@ export default function SuppliersPage() {
     return (
       <SupplierForm
         onCancel={() => setMode({ kind: "list" })}
-        onSave={(input) => {
-          addSupplier(input);
+        onSave={async (input) => {
+          await addSupplier(input);
           setMode({ kind: "list" });
         }}
       />
@@ -47,8 +48,8 @@ export default function SuppliersPage() {
       <SupplierForm
         supplier={mode.supplier}
         onCancel={() => setMode({ kind: "list" })}
-        onSave={(input) => {
-          updateSupplier(mode.supplier.id, input);
+        onSave={async (input) => {
+          await updateSupplier(mode.supplier.id, input);
           setMode({ kind: "list" });
         }}
       />
@@ -153,7 +154,7 @@ function SupplierForm({
 }: {
   supplier?: Supplier;
   onCancel: () => void;
-  onSave: (input: Omit<Supplier, "id">) => void;
+  onSave: (input: Omit<Supplier, "id">) => Promise<void>;
 }) {
   const [name, setName] = useState(supplier?.name ?? "");
   const [category, setCategory] = useState(supplier?.category ?? "");
@@ -162,21 +163,30 @@ function SupplierForm({
   const [paymentTerms, setPaymentTerms] = useState(supplier?.paymentTerms ?? "Net 30");
   const [leadTimeDays, setLeadTimeDays] = useState(String(supplier?.leadTimeDays ?? 2));
   const [status, setStatus] = useState<SupplierStatus>(supplier?.status ?? "ACTIVE");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const canSave = name.trim() && category.trim();
 
-  function handleSave() {
-    onSave({
-      name,
-      category,
-      contactName,
-      contactPhone,
-      paymentTerms,
-      leadTimeDays: Number(leadTimeDays) || 0,
-      deliveryAccuracyPct: supplier?.deliveryAccuracyPct ?? 0,
-      qualityAvg: supplier?.qualityAvg ?? 0,
-      status,
-    });
+  async function handleSave() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSave({
+        name,
+        category,
+        contactName,
+        contactPhone,
+        paymentTerms,
+        leadTimeDays: Number(leadTimeDays) || 0,
+        deliveryAccuracyPct: supplier?.deliveryAccuracyPct ?? 0,
+        qualityAvg: supplier?.qualityAvg ?? 0,
+        status,
+      });
+    } catch (err) {
+      setError(errorMessage(err, "Failed to save supplier."));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -212,10 +222,11 @@ function SupplierForm({
           ? "Delivery accuracy and quality score are computed from GRN history, not editable here."
           : "Delivery accuracy and quality score start blank — they build up from real GRN history once deliveries start coming in."}
       </p>
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
       <div className="mt-4 flex justify-end gap-2">
         <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" onClick={handleSave} disabled={!canSave}>
-          {supplier ? "Save changes" : "Save supplier"}
+        <Button variant="primary" onClick={handleSave} disabled={!canSave || submitting}>
+          {submitting ? "Saving…" : supplier ? "Save changes" : "Save supplier"}
         </Button>
       </div>
     </Card>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { errorMessage } from "@/lib/api";
 import { useFoodOps } from "@/lib/foodops/FoodOpsContext";
 import { PO_APPROVAL_THRESHOLD } from "@/lib/foodops/mockData";
 import type { POStatus, PurchaseOrder, StoreItem, Supplier } from "@/lib/foodops/types";
@@ -51,6 +52,8 @@ export default function PurchaseOrdersPage() {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<POStatus | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const isManager = user?.role === "MANAGER";
   const supplierName = (id: number) => suppliers.find((s) => s.id === id)?.name ?? "—";
@@ -69,6 +72,18 @@ export default function PurchaseOrdersPage() {
     return acc;
   }, {});
 
+  async function handleQuickApprove(id: number) {
+    setBusyId(id);
+    setListError(null);
+    try {
+      await approvePurchaseOrder(id);
+    } catch (err) {
+      setListError(errorMessage(err, "Failed to approve purchase order."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (mode.kind === "new") {
     return (
       <NewPOForm
@@ -76,8 +91,8 @@ export default function PurchaseOrdersPage() {
         items={items}
         raisedBy={`${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() || "Unknown"}
         onCancel={() => setMode({ kind: "list" })}
-        onCreate={(input) => {
-          createPurchaseOrder(input);
+        onCreate={async (input) => {
+          await createPurchaseOrder(input);
           setMode({ kind: "list" });
         }}
       />
@@ -101,6 +116,7 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="space-y-4">
+      {listError && <p className="text-xs text-danger">{listError}</p>}
       <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2">
         <Search className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
         <input
@@ -173,8 +189,8 @@ export default function PurchaseOrdersPage() {
                     <td className="p-3">
                       <div className="flex justify-end gap-1.5">
                         {po.status === "AWAITING_APPROVAL" && isManager && (
-                          <Button variant="primary" onClick={() => approvePurchaseOrder(po.id)}>
-                            Approve
+                          <Button variant="primary" onClick={() => handleQuickApprove(po.id)} disabled={busyId === po.id}>
+                            {busyId === po.id ? "Approving…" : "Approve"}
                           </Button>
                         )}
                         <Button onClick={() => setMode({ kind: "view", po })}>View</Button>
@@ -205,19 +221,41 @@ function PODetail({
   items: StoreItem[];
   isManager: boolean;
   onBack: () => void;
-  onApprove: () => void;
-  onReject: (reason: string) => void;
+  onApprove: () => Promise<void>;
+  onReject: (reason: string) => Promise<void>;
 }) {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const supplier = suppliers.find((s) => s.id === po.supplierId);
   const itemName = (id: number) => items.find((i) => i.id === id)?.name ?? "—";
   const total = poTotal(po);
 
-  function confirmReject() {
+  async function handleApprove() {
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      await onApprove();
+    } catch (err) {
+      setActionError(errorMessage(err, "Failed to approve purchase order."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function confirmReject() {
     if (!reason.trim()) return;
-    onReject(reason.trim());
-    setRejecting(false);
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      await onReject(reason.trim());
+      setRejecting(false);
+    } catch (err) {
+      setActionError(errorMessage(err, "Failed to reject purchase order."));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -237,15 +275,19 @@ function PODetail({
               )}
               {po.status === "AWAITING_APPROVAL" && isManager && !rejecting && (
                 <>
-                  <Button onClick={() => setRejecting(true)}>Reject</Button>
-                  <Button variant="primary" onClick={onApprove}>
-                    Approve
+                  <Button onClick={() => setRejecting(true)} disabled={submitting}>
+                    Reject
+                  </Button>
+                  <Button variant="primary" onClick={handleApprove} disabled={submitting}>
+                    {submitting ? "Approving…" : "Approve"}
                   </Button>
                 </>
               )}
             </div>
           }
         />
+
+        {actionError && <p className="mb-3 text-xs text-danger">{actionError}</p>}
 
         {rejecting && (
           <div className="mb-5 rounded-md border border-danger/25 bg-danger-bg p-3 text-xs">
@@ -258,9 +300,11 @@ function PODetail({
               onChange={(e) => setReason(e.target.value)}
             />
             <div className="mt-2 flex justify-end gap-2">
-              <Button onClick={() => { setRejecting(false); setReason(""); }}>Cancel</Button>
-              <Button variant="danger" onClick={confirmReject} disabled={!reason.trim()}>
-                Confirm rejection
+              <Button onClick={() => { setRejecting(false); setReason(""); }} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={confirmReject} disabled={!reason.trim() || submitting}>
+                {submitting ? "Rejecting…" : "Confirm rejection"}
               </Button>
             </div>
           </div>
@@ -356,7 +400,7 @@ function NewPOForm({
     notes: string;
     lineItems: { itemId: number; qtyOrdered: number; unit: string; unitPrice: number }[];
     raisedBy: string;
-  }) => void;
+  }) => Promise<void>;
 }) {
   const [supplierId, setSupplierId] = useState<number | "">("");
   const [expectedDate, setExpectedDate] = useState("");
@@ -364,6 +408,8 @@ function NewPOForm({
   const [priority, setPriority] = useState<PurchaseOrder["priority"]>("NORMAL");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function addLine() {
     if (items.length === 0) return;
@@ -383,22 +429,29 @@ function NewPOForm({
   const needsApproval = total > PO_APPROVAL_THRESHOLD;
   const canSubmit = supplierId && expectedDate && lines.length > 0;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!supplierId) return;
-    onCreate({
-      supplierId,
-      priority,
-      expectedDate,
-      deliveryAddress,
-      notes,
-      raisedBy,
-      lineItems: lines.map((l) => ({
-        itemId: l.itemId,
-        qtyOrdered: Number(l.qtyOrdered) || 0,
-        unit: l.unit,
-        unitPrice: Number(l.unitPrice) || 0,
-      })),
-    });
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onCreate({
+        supplierId,
+        priority,
+        expectedDate,
+        deliveryAddress,
+        notes,
+        raisedBy,
+        lineItems: lines.map((l) => ({
+          itemId: l.itemId,
+          qtyOrdered: Number(l.qtyOrdered) || 0,
+          unit: l.unit,
+          unitPrice: Number(l.unitPrice) || 0,
+        })),
+      });
+    } catch (err) {
+      setError(errorMessage(err, "Failed to create purchase order."));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -515,10 +568,14 @@ function NewPOForm({
         </div>
       )}
 
+      {error && <p className="mb-4 text-xs text-danger">{error}</p>}
+
       <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit}>
-          {needsApproval ? "Submit for approval" : "Create purchase order"}
+        <Button onClick={onCancel} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit || submitting}>
+          {submitting ? "Creating…" : needsApproval ? "Submit for approval" : "Create purchase order"}
         </Button>
       </div>
     </Card>

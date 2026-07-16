@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Pencil, Plus, Search } from "lucide-react";
+import { errorMessage } from "@/lib/api";
 import { useFoodOps } from "@/lib/foodops/FoodOpsContext";
 import { stockStatus, type StoreItem, type Supplier } from "@/lib/foodops/types";
 import { Card, Badge, Button, Chip, EmptyState } from "@/components/ui";
@@ -42,8 +43,8 @@ export default function ItemMasterPage() {
       <ItemForm
         suppliers={suppliers}
         onCancel={() => setMode({ kind: "list" })}
-        onSave={(input) => {
-          addItem(input);
+        onSave={async (input) => {
+          await addItem(input);
           setMode({ kind: "list" });
         }}
       />
@@ -56,8 +57,8 @@ export default function ItemMasterPage() {
         item={mode.item}
         suppliers={suppliers}
         onCancel={() => setMode({ kind: "list" })}
-        onSave={(input) => {
-          updateItem(mode.item.id, input);
+        onSave={async (input) => {
+          await updateItem(mode.item.id, input);
           setMode({ kind: "list" });
         }}
       />
@@ -170,7 +171,7 @@ function ItemForm({
   item?: StoreItem;
   suppliers: Supplier[];
   onCancel: () => void;
-  onSave: (input: Omit<StoreItem, "id">) => void;
+  onSave: (input: Omit<StoreItem, "id">) => Promise<void>;
 }) {
   const [name, setName] = useState(item?.name ?? "");
   const [category, setCategory] = useState(item?.category ?? "");
@@ -184,24 +185,33 @@ function ItemForm({
   const [unitCost, setUnitCost] = useState(String(item?.unitCost ?? 0));
   const [shelfLifeDays, setShelfLifeDays] = useState(item?.shelfLifeDays != null ? String(item.shelfLifeDays) : "");
   const [location, setLocation] = useState(item?.location ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const canSave = name.trim() && category.trim() && useUnit.trim();
 
-  function handleSave() {
-    onSave({
-      name,
-      category,
-      barcode,
-      preferredSupplierId: preferredSupplierId || null,
-      buyUnit,
-      useUnit,
-      reorderLevel: Number(reorderLevel) || 0,
-      maxLevel: Number(maxLevel) || 0,
-      onHand: Number(onHand) || 0,
-      unitCost: Number(unitCost) || 0,
-      shelfLifeDays: shelfLifeDays ? Number(shelfLifeDays) : null,
-      location,
-    });
+  async function handleSave() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSave({
+        name,
+        category,
+        barcode,
+        preferredSupplierId: preferredSupplierId || null,
+        buyUnit,
+        useUnit,
+        reorderLevel: Number(reorderLevel) || 0,
+        maxLevel: Number(maxLevel) || 0,
+        onHand: Number(onHand) || 0,
+        unitCost: Number(unitCost) || 0,
+        shelfLifeDays: shelfLifeDays ? Number(shelfLifeDays) : null,
+        location,
+      });
+    } catch (err) {
+      setError(errorMessage(err, "Failed to save item."));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -236,10 +246,11 @@ function ItemForm({
           flow through receiving and dispatch, not this form.
         </p>
       )}
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
       <div className="mt-4 flex justify-end gap-2">
         <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" onClick={handleSave} disabled={!canSave}>
-          {item ? "Save changes" : "Save item"}
+        <Button variant="primary" onClick={handleSave} disabled={!canSave || submitting}>
+          {submitting ? "Saving…" : item ? "Save changes" : "Save item"}
         </Button>
       </div>
     </Card>

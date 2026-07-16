@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useToast } from "@/components/ToastProvider";
+import { formatCurrency } from "@/lib/format";
 import {
   PO_APPROVAL_THRESHOLD,
   generateCode,
@@ -11,6 +13,9 @@ import {
   initialSuppliers,
 } from "./mockData";
 import type { GRN, GRNLineItem, POLineItem, PurchaseOrder, StoreItem, Supplier } from "./types";
+
+const APPROVAL_OVERDUE_HOURS = 4;
+const OVERDUE_CHECK_INTERVAL_MS = 60000;
 
 interface NewPOInput {
   supplierId: number;
@@ -36,14 +41,19 @@ interface FoodOpsContextValue {
   items: StoreItem[];
   purchaseOrders: PurchaseOrder[];
   grns: GRN[];
-  addSupplier: (input: Omit<Supplier, "id">) => void;
-  updateSupplier: (id: number, input: Omit<Supplier, "id">) => void;
-  addItem: (input: Omit<StoreItem, "id">) => void;
-  updateItem: (id: number, input: Omit<StoreItem, "id">) => void;
-  createPurchaseOrder: (input: NewPOInput) => PurchaseOrder;
-  approvePurchaseOrder: (id: number) => void;
-  rejectPurchaseOrder: (id: number, reason: string) => void;
-  createGRN: (input: NewGRNInput) => GRN;
+  /** Every mutator here is async and can reject, even though today's
+   * implementation is a synchronous in-memory update that never actually
+   * fails — matching the shape real API calls will have (see
+   * lib/foodops/API_CONTRACT.md) means callers already await + try/catch
+   * correctly, so swapping the internals later touches only this file. */
+  addSupplier: (input: Omit<Supplier, "id">) => Promise<Supplier>;
+  updateSupplier: (id: number, input: Omit<Supplier, "id">) => Promise<Supplier>;
+  addItem: (input: Omit<StoreItem, "id">) => Promise<StoreItem>;
+  updateItem: (id: number, input: Omit<StoreItem, "id">) => Promise<StoreItem>;
+  createPurchaseOrder: (input: NewPOInput) => Promise<PurchaseOrder>;
+  approvePurchaseOrder: (id: number) => Promise<void>;
+  rejectPurchaseOrder: (id: number, reason: string) => Promise<void>;
+  createGRN: (input: NewGRNInput) => Promise<GRN>;
 }
 
 const FoodOpsContext = createContext<FoodOpsContextValue | null>(null);
@@ -55,24 +65,33 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
   const [grns, setGrns] = useState<GRN[]>(initialGRNs);
   const poSequence = useRef(90);
   const grnSequence = useRef(40);
+  const { pushToast } = useToast();
 
-  const addSupplier = (input: Omit<Supplier, "id">) => {
-    setSuppliers((prev) => [...prev, { ...input, id: generateId() }]);
+  const addSupplier = async (input: Omit<Supplier, "id">): Promise<Supplier> => {
+    const supplier: Supplier = { ...input, id: generateId() };
+    setSuppliers((prev) => [...prev, supplier]);
+    return supplier;
   };
 
-  const updateSupplier = (id: number, input: Omit<Supplier, "id">) => {
-    setSuppliers((prev) => prev.map((s) => (s.id === id ? { ...input, id } : s)));
+  const updateSupplier = async (id: number, input: Omit<Supplier, "id">): Promise<Supplier> => {
+    const supplier: Supplier = { ...input, id };
+    setSuppliers((prev) => prev.map((s) => (s.id === id ? supplier : s)));
+    return supplier;
   };
 
-  const addItem = (input: Omit<StoreItem, "id">) => {
-    setItems((prev) => [...prev, { ...input, id: generateId() }]);
+  const addItem = async (input: Omit<StoreItem, "id">): Promise<StoreItem> => {
+    const item: StoreItem = { ...input, id: generateId() };
+    setItems((prev) => [...prev, item]);
+    return item;
   };
 
-  const updateItem = (id: number, input: Omit<StoreItem, "id">) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...input, id } : i)));
+  const updateItem = async (id: number, input: Omit<StoreItem, "id">): Promise<StoreItem> => {
+    const item: StoreItem = { ...input, id };
+    setItems((prev) => prev.map((i) => (i.id === id ? item : i)));
+    return item;
   };
 
-  const createPurchaseOrder = (input: NewPOInput): PurchaseOrder => {
+  const createPurchaseOrder = async (input: NewPOInput): Promise<PurchaseOrder> => {
     poSequence.current += 1;
     const total = input.lineItems.reduce((sum, li) => sum + li.qtyOrdered * li.unitPrice, 0);
     const po: PurchaseOrder = {
@@ -89,18 +108,29 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
       lineItems: input.lineItems.map((li) => ({ ...li, id: generateId() })),
     };
     setPurchaseOrders((prev) => [po, ...prev]);
+
+    if (po.status === "AWAITING_APPROVAL") {
+      const supplierName = suppliers.find((s) => s.id === po.supplierId)?.name ?? "supplier";
+      pushToast({
+        tone: "warning",
+        title: "New PO awaiting approval",
+        message: `${po.code} · ${formatCurrency(total)} · ${supplierName} — needs Manager approval.`,
+        href: "/store/purchase-orders",
+      });
+    }
+
     return po;
   };
 
-  const approvePurchaseOrder = (id: number) => {
+  const approvePurchaseOrder = async (id: number): Promise<void> => {
     setPurchaseOrders((prev) => prev.map((po) => (po.id === id ? { ...po, status: "SENT" } : po)));
   };
 
-  const rejectPurchaseOrder = (id: number, reason: string) => {
+  const rejectPurchaseOrder = async (id: number, reason: string): Promise<void> => {
     setPurchaseOrders((prev) => prev.map((po) => (po.id === id ? { ...po, status: "REJECTED", rejectionReason: reason } : po)));
   };
 
-  const createGRN = (input: NewGRNInput): GRN => {
+  const createGRN = async (input: NewGRNInput): Promise<GRN> => {
     grnSequence.current += 1;
     const lineItems = input.lineItems.map((li) => ({ ...li, id: generateId() }));
     const anyRejected = lineItems.some((li) => li.qtyRejected > 0);
@@ -138,8 +168,44 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
     }
 
     setGrns((prev) => [grn, ...prev]);
+
+    if (status === "DISPUTED" || status === "PARTIAL") {
+      const supplierName = suppliers.find((s) => s.id === input.supplierId)?.name ?? "supplier";
+      pushToast({
+        tone: "danger",
+        title: status === "DISPUTED" ? "Delivery has rejected items" : "Short delivery received",
+        message: `${grn.code} · ${supplierName} — check the receiving log for details.`,
+        href: "/store/receiving",
+      });
+    }
+
     return grn;
   };
+
+  // Spec's "PO approval overdue (4 hours)" alert — checked on an interval
+  // rather than tied to any single mutation, since it depends on elapsed
+  // time, not on something changing. Each PO only fires once per session.
+  const alertedOverdueIds = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    function checkOverdue() {
+      const now = Date.now();
+      for (const po of purchaseOrders) {
+        if (po.status !== "AWAITING_APPROVAL" || alertedOverdueIds.current.has(po.id)) continue;
+        const hoursWaiting = (now - new Date(po.raisedAt).getTime()) / (1000 * 60 * 60);
+        if (hoursWaiting < APPROVAL_OVERDUE_HOURS) continue;
+        alertedOverdueIds.current.add(po.id);
+        pushToast({
+          tone: "danger",
+          title: "PO approval overdue",
+          message: `${po.code} has been waiting on approval for over ${APPROVAL_OVERDUE_HOURS} hours.`,
+          href: "/store/purchase-orders",
+        });
+      }
+    }
+    checkOverdue();
+    const interval = setInterval(checkOverdue, OVERDUE_CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [purchaseOrders, pushToast]);
 
   const value = useMemo(
     () => ({

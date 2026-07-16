@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, ClipboardCheck, Truck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { errorMessage } from "@/lib/api";
 import { useFoodOps } from "@/lib/foodops/FoodOpsContext";
 import type { GRNStatus } from "@/lib/foodops/types";
 import { Card, CardHeader, Badge, Button, EmptyState } from "@/components/ui";
@@ -35,6 +36,8 @@ export default function ReceivingPage() {
   const [receivingTemp, setReceivingTemp] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [result, setResult] = useState<{ code: string; shortItems: string[] } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const itemName = (id: number) => items.find((i) => i.id === id)?.name ?? "—";
   const supplierName = (id: number) => suppliers.find((s) => s.id === id)?.name ?? "—";
@@ -68,32 +71,40 @@ export default function ReceivingPage() {
     (l) => (Number(l.qtyReceived) || 0) + (Number(l.qtyRejected) || 0) !== l.qtyOrdered || Number(l.qtyRejected) > 0
   ).length;
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!selectedPo) return;
-    const grn = createGRN({
-      poId: selectedPo.id,
-      supplierId: selectedPo.supplierId,
-      deliveryNote,
-      receivingTempC: receivingTemp,
-      receivedBy: `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() || "Unknown",
-      lineItems: lines.map((l) => ({
-        itemId: l.itemId,
-        qtyOrdered: l.qtyOrdered,
-        qtyReceived: Number(l.qtyReceived) || 0,
-        qtyRejected: Number(l.qtyRejected) || 0,
-        quality: Number(l.quality) || 0,
-        expiryDate: l.expiryDate || null,
-        rejectReason: l.rejectReason,
-      })),
-    });
-    setResult({
-      code: grn.code,
-      shortItems: shortfalls.map((l) => itemName(l.itemId)),
-    });
-    setSelectedPoId("");
-    setLines([]);
-    setDeliveryNote("");
-    setReceivingTemp("");
+    setSubmitting(true);
+    setError(null);
+    try {
+      const grn = await createGRN({
+        poId: selectedPo.id,
+        supplierId: selectedPo.supplierId,
+        deliveryNote,
+        receivingTempC: receivingTemp,
+        receivedBy: `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() || "Unknown",
+        lineItems: lines.map((l) => ({
+          itemId: l.itemId,
+          qtyOrdered: l.qtyOrdered,
+          qtyReceived: Number(l.qtyReceived) || 0,
+          qtyRejected: Number(l.qtyRejected) || 0,
+          quality: Number(l.quality) || 0,
+          expiryDate: l.expiryDate || null,
+          rejectReason: l.rejectReason,
+        })),
+      });
+      setResult({
+        code: grn.code,
+        shortItems: shortfalls.map((l) => itemName(l.itemId)),
+      });
+      setSelectedPoId("");
+      setLines([]);
+      setDeliveryNote("");
+      setReceivingTemp("");
+    } catch (err) {
+      setError(errorMessage(err, "Failed to confirm GRN."));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -226,9 +237,12 @@ export default function ReceivingPage() {
                 </div>
               </div>
 
+              {error && <p className="mb-3 text-xs text-danger">{error}</p>}
+
               <div className="flex justify-end">
-                <Button variant="primary" onClick={handleConfirm}>
-                  <ClipboardCheck className="h-3.5 w-3.5" strokeWidth={2} /> Confirm GRN & update inventory
+                <Button variant="primary" onClick={handleConfirm} disabled={submitting}>
+                  <ClipboardCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                  {submitting ? "Confirming…" : "Confirm GRN & update inventory"}
                 </Button>
               </div>
             </>
