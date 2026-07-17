@@ -169,6 +169,127 @@ real need shows up.
 
 ---
 
+## Stock movement ledger
+
+Not a CRUD resource the frontend calls directly — a read-only trail of every
+quantity change to a Store item, used to power "last movement" on Stock
+levels and to reconstruct opening/closing stock in Reports without needing
+point-in-time snapshots. Mirrored today by `StockMovement` in `types.ts` and
+`FoodOpsContext`'s `recordMovement()` helper, called internally by every
+mutator that changes `on_hand`.
+
+`GET /api/store/stock-movements/?item={id}&from={date}&to={date}`
+
+| JSON field (backend) | `types.ts` field | Notes |
+|---|---|---|
+| `id` | `id` | |
+| `item` | `itemId` | FK |
+| `type` | `type` | `RECEIPT` \| `DISPATCH` \| `WASTAGE` \| `ADJUSTMENT` |
+| `qty` | `qty` | decimal, **signed** — positive is stock in, negative is stock out |
+| `reference` | `reference` | free text, e.g. a GRN code, a dispatch destination, "Manual stocktake correction" |
+| `occurred_at` | `occurredAt` | read-only, `auto_now_add` |
+
+Write a row here as a side effect of each of these, never directly from the
+client:
+- GRN confirmation → one `RECEIPT` row per line (`qty_received - qty_rejected`).
+- A stocktake `PATCH` to `item.on_hand` where the new value differs from the
+  old → one `ADJUSTMENT` row (`new_on_hand - old_on_hand`), reference
+  `"Manual stocktake correction"`.
+- Dispatch confirm/manual dispatch (below) → one `DISPATCH` row, `qty`
+  negative.
+- Wastage log (below) → one `WASTAGE` row, `qty` negative.
+
+---
+
+## Dispatch
+
+Two distinct actions today, both frontend-only mock writes against
+`stockMovements` — no dedicated Store backend endpoint exists yet:
+
+1. **Confirming a pending Kitchen request** — the frontend already calls
+   Kitchen's real, existing endpoints directly (`GET
+   /api/kitchen/stock-requests/?status=PENDING` then `POST
+   /api/kitchen/stock-requests/{id}/mark-fulfilled/`), matching the
+   ingredient to a Store item by case-insensitive name (the two modules
+   don't share an item master yet — see *Known gaps*). This is a real,
+   working integration today, not mocked; it just doesn't decrement a real
+   Store `on_hand` anywhere, only the in-memory `stockMovements` ledger.
+2. **Manual dispatch** — destination (free text today, `"Kitchen"` \|
+   `"Front of House"` offered as suggestions, not enforced), item, qty,
+   reason — no Kitchen-side counterpart, purely a Store-side movement.
+
+When this gets a real backend, both paths should converge on the same
+`POST /api/store/dispatch/` endpoint (`{item, qty, destination, reference,
+kitchen_stock_request_id?}`) that writes a `DISPATCH` movement and decrements
+`item.on_hand` server-side — with (1) still also calling Kitchen's
+`mark-fulfilled` action as it does today. Note Kitchen's `mark_fulfilled` has
+no partial-quantity parameter (it always adds the full `qty_requested`); if
+partial fulfillment ever matters, that's a Kitchen-side change, out of scope
+for Store.
+
+---
+
+## Wastage (Store-side)
+
+Distinct from Kitchen's existing `/api/kitchen/wastage/` — this is Store
+inventory shrinkage (expired/spoiled/damaged stock, not kitchen prep waste).
+
+`GET/POST /api/store/wastage/`, `POST /api/store/wastage/{id}/acknowledge/`
+
+Permission: **log** — Manager or Store Keeper. **acknowledge** — Manager only.
+
+| JSON field (backend) | `types.ts` field | Notes |
+|---|---|---|
+| `id` | `id` | |
+| `item` | `itemId` | FK, required |
+| `qty` | `qty` | decimal, required — **server must reject if `qty > item.on_hand`**, matching the frontend's `overAvailable` guard (don't trust the client-side check alone) |
+| `reason` | `reason` | `EXPIRED` \| `SPOILED` \| `DAMAGED` \| `OVER_PRODUCED` \| `PREP_WASTE` \| `THEFT_SUSPECTED` |
+| `notes` | `notes` | required when `reason = THEFT_SUSPECTED` (frontend already enforces this client-side; enforce server-side too) |
+| `estimated_value` | `estimatedValue` | **server-computed**, `qty * item.unit_cost` at time of logging — snapshot it, don't recompute live later, same reasoning as Kitchen's batch-completion cost snapshot |
+| `logged_by` / `logged_by_name` | `loggedBy` | read-only, `request.user` |
+| `logged_at` | `loggedAt` | read-only, `auto_now_add` |
+| `acknowledged_by` / `acknowledged_by_name` | `acknowledgedBy` | null until acknowledged |
+| `acknowledged_at` | `acknowledgedAt` | null until acknowledged |
+
+**On create**: decrement `item.on_hand -= qty` and write a `WASTAGE`
+stock-movement row (`qty` negative), in the same transaction — mirrors GRN's
+side-effect pattern above.
+
+**Acknowledgement threshold**: entries where `estimated_value >
+WASTAGE_ACKNOWLEDGEMENT_THRESHOLD` (₦5,000 — see `types.ts`, make this a
+Django setting like the PO approval threshold) need a Manager to call the
+`acknowledge` action before they're considered resolved — matches the spec's
+"wastage above ₦5,000 requires supervisor sign-off" rule. The frontend
+surfaces unacknowledged over-threshold entries as a "Needs supervisor
+sign-off" section (Manager view) and a toast at the moment of logging.
+
+---
+
+## Store reports
+
+**Not built as a dedicated endpoint yet** — `/store/reports` currently
+computes everything client-side from the `items`/`suppliers`/`purchase-orders`/
+`grns`/`stock-movements`/`wastage` list responses, same "fine until real data
+volume says otherwise" reasoning as the Store dashboard above. The one piece
+of real logic worth mirroring server-side if/when this becomes a dedicated
+endpoint:
+
+- **Opening/closing stock per item, for an arbitrary date range**, computed
+  by taking each item's *current* `on_hand` as `closing` and subtracting the
+  signed sum of that item's stock-movement rows that fall inside the range —
+  i.e. `opening = closing - sum(movements in range)`. This is why the
+  movement ledger above exists: it means Reports never needs a point-in-time
+  snapshot table that could drift out of sync with the real `on_hand`.
+- **Supplier performance** (`computeSupplierPerformance` in `types.ts`) is
+  the same on-time-%/quality-average computation already described under
+  *Suppliers* above (`delivery_accuracy_pct`/`quality_avg`) — Reports just
+  renders it per-supplier in a table instead of as a single summary field.
+  Once suppliers carry those fields server-computed, Reports can either
+  reuse them directly or recompute scoped to the selected date range,
+  whichever the real backend implementation makes cheaper.
+
+---
+
 ## Dashboard
 
 **Not a new endpoint yet.** `/store/dashboard` currently computes all its KPIs
@@ -186,11 +307,19 @@ speculatively.
 Matches the "Known limitations" already called out in the main README —
 listed here so nothing gets silently assumed:
 
-- No Dispatch or Wastage endpoints (Store-side wastage, not Kitchen's
-  existing one) — out of scope for the core procure-to-stock loop.
-- No Store Reports endpoint (daily inventory movement, food cost breakdown,
-  supplier performance) — the reference mockup has one, this build doesn't.
+- All 9 reference-mockup screens are now built frontend-only, including
+  Stock levels, Dispatch, Wastage, and Reports (see their sections above) —
+  but none of them have a real backend endpoint yet, only in-memory mock
+  state.
+- Store items are matched to Kitchen ingredients **by case-insensitive
+  name** on the Dispatch screen — there's no shared item master between the
+  two modules. A real shared master (or an explicit mapping table) is worth
+  building before this ships for real; name matching is a stopgap.
 - No PO approval SLA/escalation (spec: 4-hour auto-escalation alert) — not
   built anywhere yet, frontend or backend.
 - Supplier `FLAGGED` status auto-trigger (delivery accuracy < 70% over 30
   days) — not built.
+- The Suppliers list view still shows static seeded `delivery_accuracy_pct`/
+  `quality_avg` rather than the real `computeSupplierPerformance` figures
+  that Reports already uses — worth making consistent once Suppliers is
+  revisited.

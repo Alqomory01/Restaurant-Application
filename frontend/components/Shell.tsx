@@ -21,6 +21,8 @@ import {
   ClipboardList,
   FileText,
   PackageSearch,
+  Warehouse,
+  PackageCheck,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -74,7 +76,15 @@ const NAV: { section: string; items: NavItem[] }[] = [
     { href: "/store/suppliers", label: "Suppliers", icon: Truck, roles: STORE_ROLES },
     { href: "/store/items", label: "Item master", icon: PackageSearch, roles: STORE_ROLES },
     { href: "/store/purchase-orders", label: "Purchase orders", icon: FileText, roles: STORE_ROLES },
+  ] },
+  { section: "Store inventory", items: [
     { href: "/store/receiving", label: "Receiving (GRN)", icon: ClipboardList, roles: STORE_ROLES },
+    { href: "/store/stock", label: "Stock levels", icon: Warehouse, roles: STORE_ROLES },
+    { href: "/store/dispatch", label: "Dispatch", icon: PackageCheck, roles: STORE_ROLES },
+    { href: "/store/wastage", label: "Wastage log", icon: Trash2, roles: STORE_ROLES },
+  ] },
+  { section: "Store insights", items: [
+    { href: "/store/reports", label: "Reports", icon: BarChart3, roles: STORE_ROLES },
   ] },
 ];
 
@@ -94,6 +104,10 @@ const TITLES: Record<string, string> = {
   "/store/items": "Item master",
   "/store/purchase-orders": "Purchase orders",
   "/store/receiving": "Goods receiving (GRN)",
+  "/store/stock": "Stock levels",
+  "/store/dispatch": "Dispatch",
+  "/store/wastage": "Wastage log",
+  "/store/reports": "Reports",
 };
 
 export function Shell({ children }: { children: ReactNode }) {

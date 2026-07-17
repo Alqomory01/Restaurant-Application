@@ -12,7 +12,19 @@ import {
   initialPurchaseOrders,
   initialSuppliers,
 } from "./mockData";
-import type { GRN, GRNLineItem, POLineItem, PurchaseOrder, StoreItem, Supplier } from "./types";
+import type {
+  GRN,
+  GRNLineItem,
+  POLineItem,
+  PurchaseOrder,
+  StockMovement,
+  StockMovementType,
+  StoreItem,
+  StoreWastageEntry,
+  StoreWastageReason,
+  Supplier,
+} from "./types";
+import { WASTAGE_ACKNOWLEDGEMENT_THRESHOLD } from "./types";
 
 const APPROVAL_OVERDUE_HOURS = 4;
 const OVERDUE_CHECK_INTERVAL_MS = 60000;
@@ -36,11 +48,27 @@ interface NewGRNInput {
   lineItems: Omit<GRNLineItem, "id">[];
 }
 
+interface NewWastageInput {
+  itemId: number;
+  qty: number;
+  reason: StoreWastageReason;
+  notes: string;
+  loggedBy: string;
+}
+
+interface NewDispatchInput {
+  itemId: number;
+  qty: number;
+  reference: string;
+}
+
 interface FoodOpsContextValue {
   suppliers: Supplier[];
   items: StoreItem[];
   purchaseOrders: PurchaseOrder[];
   grns: GRN[];
+  stockMovements: StockMovement[];
+  wastageEntries: StoreWastageEntry[];
   /** Every mutator here is async and can reject, even though today's
    * implementation is a synchronous in-memory update that never actually
    * fails — matching the shape real API calls will have (see
@@ -54,6 +82,9 @@ interface FoodOpsContextValue {
   approvePurchaseOrder: (id: number) => Promise<void>;
   rejectPurchaseOrder: (id: number, reason: string) => Promise<void>;
   createGRN: (input: NewGRNInput) => Promise<GRN>;
+  logWastage: (input: NewWastageInput) => Promise<StoreWastageEntry>;
+  acknowledgeWastage: (id: number, acknowledgedBy: string) => Promise<void>;
+  recordDispatch: (input: NewDispatchInput) => Promise<void>;
 }
 
 const FoodOpsContext = createContext<FoodOpsContextValue | null>(null);
@@ -63,9 +94,18 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<StoreItem[]>(initialItems);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(initialPurchaseOrders);
   const [grns, setGrns] = useState<GRN[]>(initialGRNs);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [wastageEntries, setWastageEntries] = useState<StoreWastageEntry[]>([]);
   const poSequence = useRef(90);
   const grnSequence = useRef(40);
   const { pushToast } = useToast();
+
+  function recordMovement(itemId: number, type: StockMovementType, qty: number, reference: string) {
+    setStockMovements((prev) => [
+      { id: generateId(), itemId, type, qty, reference, occurredAt: new Date().toISOString() },
+      ...prev,
+    ]);
+  }
 
   const addSupplier = async (input: Omit<Supplier, "id">): Promise<Supplier> => {
     const supplier: Supplier = { ...input, id: generateId() };
@@ -87,7 +127,11 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
 
   const updateItem = async (id: number, input: Omit<StoreItem, "id">): Promise<StoreItem> => {
     const item: StoreItem = { ...input, id };
+    const previous = items.find((i) => i.id === id);
     setItems((prev) => prev.map((i) => (i.id === id ? item : i)));
+    if (previous && previous.onHand !== item.onHand) {
+      recordMovement(id, "ADJUSTMENT", item.onHand - previous.onHand, "Manual stocktake correction");
+    }
     return item;
   };
 
@@ -169,6 +213,11 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
 
     setGrns((prev) => [grn, ...prev]);
 
+    for (const line of lineItems) {
+      const receivedQty = line.qtyReceived - line.qtyRejected;
+      if (receivedQty !== 0) recordMovement(line.itemId, "RECEIPT", receivedQty, grn.code);
+    }
+
     if (status === "DISPUTED" || status === "PARTIAL") {
       const supplierName = suppliers.find((s) => s.id === input.supplierId)?.name ?? "supplier";
       pushToast({
@@ -180,6 +229,53 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
     }
 
     return grn;
+  };
+
+  const logWastage = async (input: NewWastageInput): Promise<StoreWastageEntry> => {
+    const item = items.find((i) => i.id === input.itemId);
+    const unitCost = item?.unitCost ?? 0;
+    const estimatedValue = Math.round(input.qty * unitCost * 100) / 100;
+    const needsAcknowledgement = estimatedValue > WASTAGE_ACKNOWLEDGEMENT_THRESHOLD;
+
+    const entry: StoreWastageEntry = {
+      id: generateId(),
+      itemId: input.itemId,
+      qty: input.qty,
+      reason: input.reason,
+      notes: input.notes,
+      estimatedValue,
+      loggedBy: input.loggedBy,
+      loggedAt: new Date().toISOString(),
+      acknowledgedBy: null,
+      acknowledgedAt: null,
+    };
+    setWastageEntries((prev) => [entry, ...prev]);
+    setItems((prev) => prev.map((i) => (i.id === input.itemId ? { ...i, onHand: Math.max(0, i.onHand - input.qty) } : i)));
+    recordMovement(input.itemId, "WASTAGE", -input.qty, `Wastage: ${input.reason}`);
+
+    if (needsAcknowledgement) {
+      pushToast({
+        tone: "danger",
+        title: "Wastage needs supervisor sign-off",
+        message: `${formatCurrency(estimatedValue)} · ${item?.name ?? "item"} — above the ${formatCurrency(
+          WASTAGE_ACKNOWLEDGEMENT_THRESHOLD
+        )} threshold, needs Manager acknowledgement.`,
+        href: "/store/wastage",
+      });
+    }
+
+    return entry;
+  };
+
+  const acknowledgeWastage = async (id: number, acknowledgedBy: string): Promise<void> => {
+    setWastageEntries((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, acknowledgedBy, acknowledgedAt: new Date().toISOString() } : w))
+    );
+  };
+
+  const recordDispatch = async (input: NewDispatchInput): Promise<void> => {
+    setItems((prev) => prev.map((i) => (i.id === input.itemId ? { ...i, onHand: i.onHand - input.qty } : i)));
+    recordMovement(input.itemId, "DISPATCH", -input.qty, input.reference);
   };
 
   // Spec's "PO approval overdue (4 hours)" alert — checked on an interval
@@ -213,6 +309,8 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
       items,
       purchaseOrders,
       grns,
+      stockMovements,
+      wastageEntries,
       addSupplier,
       updateSupplier,
       addItem,
@@ -221,8 +319,11 @@ export function FoodOpsProvider({ children }: { children: ReactNode }) {
       approvePurchaseOrder,
       rejectPurchaseOrder,
       createGRN,
+      logWastage,
+      acknowledgeWastage,
+      recordDispatch,
     }),
-    [suppliers, items, purchaseOrders, grns]
+    [suppliers, items, purchaseOrders, grns, stockMovements, wastageEntries]
   );
 
   return <FoodOpsContext.Provider value={value}>{children}</FoodOpsContext.Provider>;
