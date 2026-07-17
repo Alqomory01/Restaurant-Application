@@ -146,6 +146,7 @@ function MenuItemForm({ item, onCancel, onSave }: { item?: MenuItem; onCancel: (
   const [active, setActive] = useState(item?.active ?? true);
   const [counterQty, setCounterQty] = useState(String(item?.counterQty ?? 0));
   const [lowStockThreshold, setLowStockThreshold] = useState(String(item?.lowStockThreshold ?? 5));
+  const [allergens, setAllergens] = useState(item?.allergens.join(", ") ?? "");
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>(item?.modifierGroups ?? []);
 
   const [isCombo, setIsCombo] = useState(item?.combo != null);
@@ -211,6 +212,7 @@ function MenuItemForm({ item, onCancel, onSave }: { item?: MenuItem; onCancel: (
         emoji,
         sellingPrice: isCombo ? Number(comboPrice) || 0 : Number(sellingPrice) || 0,
         availability,
+        allergens: allergens.split(",").map((a) => a.trim()).filter(Boolean),
         modifierGroups: modifierGroups
           .filter((g) => g.name.trim())
           .map((g) => ({ ...g, options: g.options.filter((o) => o.label.trim()) })),
@@ -236,6 +238,9 @@ function MenuItemForm({ item, onCancel, onSave }: { item?: MenuItem; onCancel: (
           <Field label="Item name *"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="Category *"><input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Proteins" /></Field>
           <Field label="Description" full><input className={inputCls} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Shown to customers" /></Field>
+          <Field label="Allergens" full>
+            <input className={inputCls} value={allergens} onChange={(e) => setAllergens(e.target.value)} placeholder="Comma-separated, e.g. Peanuts, Gluten" />
+          </Field>
           <Field label="Linked Kitchen recipe">
             <Combobox
               placeholder={recipesError ? "Recipes unavailable" : "Select recipe…"}

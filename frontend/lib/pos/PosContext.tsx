@@ -26,7 +26,7 @@ import {
   STANDARD_OPENING_FLOAT,
 } from "./types";
 
-interface NewLineInput {
+export interface NewLineInput {
   menuItemId: number;
   qty: number;
   unitPrice: number;
@@ -76,6 +76,7 @@ interface PosContextValue {
   setDiscount: (orderId: number, discountPct: number, discountReason: string) => Promise<void>;
   chargeOrder: (orderId: number, legs: ChargeLeg[]) => Promise<void>;
   voidOrder: (orderId: number, reason: string, voidedBy: string) => Promise<void>;
+  voidNewOrder: (tableOrCounterNumber: string, lines: NewLineInput[], reason: string) => Promise<void>;
   refundOrder: (orderId: number, input: RefundInput) => Promise<Refund>;
   syncFromKitchen: () => Promise<SyncResult>;
 }
@@ -103,26 +104,34 @@ export function PosProvider({ children }: { children: ReactNode }) {
     ]);
   }
 
+  // Crossing detection must be computed synchronously from the current
+  // `menuItems` closure BEFORE calling setMenuItems — React defers a
+  // functional updater's execution to the render phase, so mutating outer
+  // `let` flags inside `setMenuItems(prev => ...)` and reading them on the
+  // very next line (the original approach here) always read stale/initial
+  // values, silently swallowing every crossing toast.
   function adjustCounterQty(menuItemId: number, delta: number, type: CounterStockMovementType, reference: string) {
-    let crossedSoldOut = false;
-    let itemName = "";
-    setMenuItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== menuItemId) return item;
-        const nextQty = Math.max(0, item.counterQty + delta);
-        if (item.counterQty > 0 && nextQty === 0) {
-          crossedSoldOut = true;
-          itemName = item.name;
-        }
-        return { ...item, counterQty: nextQty };
-      })
-    );
+    const item = menuItems.find((i) => i.id === menuItemId);
+    if (!item) return;
+    const nextQty = Math.max(0, item.counterQty + delta);
+    const crossedSoldOut = item.counterQty > 0 && nextQty === 0;
+    const crossedLow = !crossedSoldOut && item.counterQty > item.lowStockThreshold && nextQty > 0 && nextQty <= item.lowStockThreshold;
+
+    setMenuItems((prev) => prev.map((i) => (i.id === menuItemId ? { ...i, counterQty: nextQty } : i)));
     recordCounterMovement(menuItemId, type, delta, reference);
+
     if (crossedSoldOut) {
       pushToast({
         tone: "danger",
         title: "Item sold out",
-        message: `${itemName} just hit zero on the counter — Kitchen needs to know to start the next batch.`,
+        message: `${item.name} just hit zero on the counter — Kitchen needs to know to start the next batch.`,
+        href: "/pos/dashboard",
+      });
+    } else if (crossedLow) {
+      pushToast({
+        tone: "warning",
+        title: "Item running low",
+        message: `${item.name} just crossed into low stock on the counter — consider requesting the next batch soon.`,
         href: "/pos/dashboard",
       });
     }
@@ -310,6 +319,40 @@ export function PosProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // A cart that's abandoned before ever being charged (Terminal's "Void
+  // order" action) still needs an auditable Order record per spec 6.3.1
+  // ("voided orders are never deleted"), but must never go through
+  // createOrder → addLine → voidOrder as three separate calls in one
+  // synchronous handler: voidOrder (like chargeOrder/refundOrder) looks up
+  // its target via the `orders` closure, which only reflects state from
+  // PosProvider's last committed render — fine when calls are naturally
+  // separated by a render (e.g. Terminal's real charge flow, where opening
+  // the payment modal is its own render before the user clicks Confirm),
+  // but stale when chained with no render in between, silently no-op-ing
+  // the void. Building the whole record — already VOIDED — in one
+  // synchronous step and writing it with a single setOrders call sidesteps
+  // the problem entirely rather than papering over it with a delay.
+  const voidNewOrder = async (tableOrCounterNumber: string, lines: NewLineInput[], reason: string): Promise<void> => {
+    if (!activeShift) throw new Error("No active shift");
+    orderSequence.current += 1;
+    const order: Order = {
+      id: generateId(),
+      code: generateOrderCode(2026, orderSequence.current),
+      tableOrCounterNumber,
+      lines: lines.map((l) => ({ ...l, id: generateId() })),
+      discountPct: 0,
+      discountReason: "",
+      status: "VOIDED",
+      shiftId: activeShift.id,
+      openedBy: activeShift.cashierName,
+      openedAt: new Date().toISOString(),
+      closedAt: null,
+      voidReason: reason,
+      voidedBy: activeShift.cashierName,
+    };
+    setOrders((prev) => [order, ...prev]);
+  };
+
   const refundOrder = async (orderId: number, input: RefundInput): Promise<Refund> => {
     const refund: Refund = { ...input, id: generateId(), orderId, createdAt: new Date().toISOString() };
     setRefunds((prev) => [refund, ...prev]);
@@ -392,6 +435,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
       setDiscount,
       chargeOrder,
       voidOrder,
+      voidNewOrder,
       refundOrder,
       syncFromKitchen,
     }),

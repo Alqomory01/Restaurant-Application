@@ -47,6 +47,9 @@ export interface MenuItem {
   emoji: string;
   sellingPrice: number;
   availability: MenuAvailability;
+  /** Free-text allergen labels shown on the terminal card (e.g. "Peanuts",
+   * "Gluten") — informational only, no allergen-based filtering logic. */
+  allergens: string[];
   modifierGroups: ModifierGroup[];
   combo: ComboConfig | null;
   active: boolean;

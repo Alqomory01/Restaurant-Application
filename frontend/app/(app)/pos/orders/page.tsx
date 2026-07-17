@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/format";
 import { usePos } from "@/lib/pos/PosContext";
 import { computeOrderTotals, REFUND_APPROVAL_THRESHOLD, type Order, type OrderStatus, type PaymentMethod } from "@/lib/pos/types";
 import { Badge, Button, Card, Chip, EmptyState } from "@/components/ui";
+import { SupervisorPinModal } from "@/components/pos/SupervisorPinModal";
 
 const statusTone: Record<OrderStatus, "success" | "neutral" | "danger"> = {
   PAID: "success",
@@ -22,15 +23,18 @@ export default function OrdersPage() {
 
   const [voidTargetId, setVoidTargetId] = useState<number | null>(null);
   const [voidReason, setVoidReason] = useState("");
-  const [voidSupervisor, setVoidSupervisor] = useState("");
 
   const [refundTargetId, setRefundTargetId] = useState<number | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundMethod, setRefundMethod] = useState<PaymentMethod>("CASH");
   const [refundReason, setRefundReason] = useState(REASON_CODES[0]);
-  const [refundSupervisor, setRefundSupervisor] = useState("");
-  const [refundGm, setRefundGm] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Which action is currently waiting on supervisor PIN entry — a void of
+  // an already-PAID order, or any refund (below threshold needs one FOH
+  // Supervisor; above threshold's "dual approval" is satisfied by that PIN
+  // plus the fact only a real Manager login can reach this screen at all).
+  const [pinFor, setPinFor] = useState<null | "void" | "refund">(null);
 
   const filtered = orders.filter((o) => !statusFilter || o.status === statusFilter);
 
@@ -38,43 +42,50 @@ export default function OrdersPage() {
     return menuItems.find((m) => m.id === id)?.name ?? "Item";
   }
 
-  async function confirmVoid() {
+  async function doVoid(authorizedBy: string) {
     if (voidTargetId == null || !voidReason.trim()) return;
-    const order = orders.find((o) => o.id === voidTargetId);
-    const needsSupervisor = order?.status === "PAID";
-    if (needsSupervisor && !voidSupervisor.trim()) return;
     setBusy(true);
     try {
-      await voidOrder(voidTargetId, voidReason.trim(), needsSupervisor ? voidSupervisor.trim() : activeShift?.cashierName ?? "Cashier");
+      await voidOrder(voidTargetId, voidReason.trim(), authorizedBy);
       setVoidTargetId(null);
       setVoidReason("");
-      setVoidSupervisor("");
+      setPinFor(null);
     } finally {
       setBusy(false);
     }
   }
 
-  async function confirmRefund() {
+  function handleConfirmVoidClick() {
+    const order = orders.find((o) => o.id === voidTargetId);
+    if (!voidReason.trim()) return;
+    if (order?.status === "PAID") {
+      setPinFor("void");
+    } else {
+      doVoid(activeShift?.cashierName ?? "Cashier");
+    }
+  }
+
+  async function doRefund(authorizedBy: string) {
     if (refundTargetId == null || !refundAmount || !refundReason.trim()) return;
-    const amount = Number(refundAmount);
-    const aboveThreshold = amount > REFUND_APPROVAL_THRESHOLD;
-    if (aboveThreshold && (!refundSupervisor.trim() || !refundGm.trim())) return;
-    if (!aboveThreshold && !refundSupervisor.trim()) return;
     setBusy(true);
     try {
       await refundOrder(refundTargetId, {
-        amount,
+        amount: Number(refundAmount),
         method: refundMethod,
         reasonCode: refundReason,
-        authorizedBy: aboveThreshold ? `${refundSupervisor.trim()} + ${refundGm.trim()} (GM)` : refundSupervisor.trim(),
+        authorizedBy,
       });
       setRefundTargetId(null);
       setRefundAmount("");
-      setRefundSupervisor("");
-      setRefundGm("");
+      setPinFor(null);
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleConfirmRefundClick() {
+    if (!refundAmount || !refundReason.trim()) return;
+    setPinFor("refund");
   }
 
   const voidTarget = orders.find((o) => o.id === voidTargetId) ?? null;
@@ -149,7 +160,7 @@ export default function OrdersPage() {
                     )}
                     <div className="flex gap-2">
                       {order.status !== "VOIDED" && (
-                        <Button variant="danger" onClick={() => { setVoidTargetId(order.id); setVoidReason(""); setVoidSupervisor(""); }}>
+                        <Button variant="danger" onClick={() => { setVoidTargetId(order.id); setVoidReason(""); }}>
                           <Ban className="h-3.5 w-3.5" strokeWidth={2} /> Void
                         </Button>
                       )}
@@ -167,29 +178,23 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {voidTarget && (
+      {voidTarget && pinFor !== "void" && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => setVoidTargetId(null)}>
           <Card className="w-full max-w-sm" >
             <div onClick={(e) => e.stopPropagation()}>
               <div className="mb-3 text-sm font-bold text-ink">Void {voidTarget.code}</div>
               {voidTarget.status === "PAID" && (
-                <p className="mb-2 text-xs text-warning">This order was already paid — voiding after payment requires a Supervisor or GM.</p>
+                <p className="mb-2 text-xs text-warning">This order was already paid — voiding after payment requires a Supervisor PIN.</p>
               )}
               <div className="space-y-2.5 text-xs">
                 <div className="space-y-1">
                   <label className="font-semibold text-ink-soft">Reason *</label>
                   <input className="w-full rounded-md border border-border-2 px-2 py-1.5" value={voidReason} onChange={(e) => setVoidReason(e.target.value)} placeholder="Why is this being voided?" />
                 </div>
-                {voidTarget.status === "PAID" && (
-                  <div className="space-y-1">
-                    <label className="font-semibold text-ink-soft">Supervisor / GM name *</label>
-                    <input className="w-full rounded-md border border-border-2 px-2 py-1.5" value={voidSupervisor} onChange={(e) => setVoidSupervisor(e.target.value)} placeholder="Authorizing supervisor" />
-                  </div>
-                )}
                 <div className="flex gap-2 pt-1">
                   <Button className="flex-1 justify-center" onClick={() => setVoidTargetId(null)}>Cancel</Button>
-                  <Button variant="danger" className="flex-1 justify-center" onClick={confirmVoid} disabled={busy || !voidReason.trim() || (voidTarget.status === "PAID" && !voidSupervisor.trim())}>
-                    {busy ? "Voiding…" : "Confirm void"}
+                  <Button variant="danger" className="flex-1 justify-center" onClick={handleConfirmVoidClick} disabled={busy || !voidReason.trim()}>
+                    {voidTarget.status === "PAID" ? "Continue to PIN" : busy ? "Voiding…" : "Confirm void"}
                   </Button>
                 </div>
               </div>
@@ -198,7 +203,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {refundTarget && (
+      {refundTarget && pinFor !== "refund" && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => setRefundTargetId(null)}>
           <Card className="w-full max-w-sm">
             <div onClick={(e) => e.stopPropagation()}>
@@ -224,33 +229,41 @@ export default function OrdersPage() {
                     {REASON_CODES.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
-                {refundAboveThreshold ? (
-                  <div className="space-y-2 rounded-md border border-warning/30 bg-warning-bg p-2">
-                    <p className="font-semibold text-warning">Above {formatCurrency(REFUND_APPROVAL_THRESHOLD)} — dual approval required.</p>
-                    <input className="w-full rounded-md border border-border-2 px-2 py-1.5" value={refundSupervisor} onChange={(e) => setRefundSupervisor(e.target.value)} placeholder="FOH Supervisor name" />
-                    <input className="w-full rounded-md border border-border-2 px-2 py-1.5" value={refundGm} onChange={(e) => setRefundGm(e.target.value)} placeholder="GM name" />
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <label className="font-semibold text-ink-soft">FOH Supervisor authorization *</label>
-                    <input className="w-full rounded-md border border-border-2 px-2 py-1.5" value={refundSupervisor} onChange={(e) => setRefundSupervisor(e.target.value)} placeholder="Supervisor name" />
-                  </div>
+                {refundAboveThreshold && (
+                  <p className="rounded-md border border-warning/30 bg-warning-bg p-2 font-semibold text-warning">
+                    Above {formatCurrency(REFUND_APPROVAL_THRESHOLD)} — needs dual approval: a Supervisor PIN plus your own
+                    authenticated Manager session covers the GM half.
+                  </p>
                 )}
                 <div className="flex gap-2 pt-1">
                   <Button className="flex-1 justify-center" onClick={() => setRefundTargetId(null)}>Cancel</Button>
-                  <Button
-                    variant="primary"
-                    className="flex-1 justify-center"
-                    onClick={confirmRefund}
-                    disabled={busy || !refundAmount || !refundSupervisor.trim() || (refundAboveThreshold && !refundGm.trim())}
-                  >
-                    {busy ? "Processing…" : "Confirm refund"}
+                  <Button variant="primary" className="flex-1 justify-center" onClick={handleConfirmRefundClick} disabled={busy || !refundAmount}>
+                    Continue to PIN
                   </Button>
                 </div>
               </div>
             </div>
           </Card>
         </div>
+      )}
+
+      {pinFor === "void" && (
+        <SupervisorPinModal
+          reason={`Voiding an already-paid order (${voidTarget?.code}) requires supervisor authorization.`}
+          onSuccess={(name) => doVoid(name)}
+          onCancel={() => setPinFor(null)}
+        />
+      )}
+      {pinFor === "refund" && (
+        <SupervisorPinModal
+          reason={
+            refundAboveThreshold
+              ? `Refund of ${formatCurrency(Number(refundAmount))} on ${refundTarget?.code} is above the ${formatCurrency(REFUND_APPROVAL_THRESHOLD)} threshold — supervisor PIN required (your Manager session covers GM approval).`
+              : `Refund on ${refundTarget?.code} requires FOH Supervisor authorization.`
+          }
+          onSuccess={(name) => doRefund(refundAboveThreshold ? `${name} + Manager (GM)` : name)}
+          onCancel={() => setPinFor(null)}
+        />
       )}
     </div>
   );

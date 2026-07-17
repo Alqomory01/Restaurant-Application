@@ -49,6 +49,7 @@ Cashier action).
 | `emoji` | `emoji` | today's lightweight image stand-in — swap for a real `image` upload field when there's image infra; keep `emoji` as a cheap fallback even then |
 | `selling_price` | `sellingPrice` | decimal, ₦, **exclusive of tax** — inclusive price is `selling_price * (1 + TAX_RATE)`, computed, never stored separately |
 | `availability` | `availability` | `ALL_DAY`\|`BREAKFAST`\|`LUNCH`\|`DINNER` |
+| `allergens` | `allergens` | array of free-text labels (e.g. `["Peanuts"]`), informational only — no allergen-based filtering logic anywhere |
 | `modifier_groups` | `modifierGroups` | nested, `[{name, options: [{label, price_delta}]}]` |
 | `combo` | `combo` | nullable, `{item_ids: [...], combo_price}` — when set, `selling_price` should equal `combo_price` (single source, avoid drift) |
 | `active` | `active` | soft toggle, never delete a menu item that's been sold — matches Kitchen's Recipe `status` / Store's `SupplierStatus` "never hard-delete something with history" pattern |
@@ -162,12 +163,18 @@ line is edited after the fact.
   `status = PAID` and `closed_at`.
 - `POST /api/pos/orders/{id}/void/` — body: `{reason, voided_by}`. If
   `status == OPEN`: any till operator can call this (spec: cashier can void
-  pre-payment in the same session). If `status == PAID`: **must be
+  pre-payment in the same session — the frontend's Terminal "Void order"
+  button covers the *never-charged* case of this by writing an already-
+  `VOIDED` order in one shot, not by calling void on an `OPEN` one; see the
+  `PosContext.voidNewOrder` comment for why). If `status == PAID`: **must be
   restricted to Supervisor/GM server-side** (spec 6.3.1) — the frontend
-  already prompts for a supervisor name in that case, but that's not a real
-  authorization check yet, just a text field. Restores counter stock via
-  `VOID_RESTORE` movements when voiding a `PAID` order. Sets
-  `status = VOIDED` — **never deleted**, matches spec exactly.
+  gates this behind a real 4-digit PIN check today
+  (`components/pos/SupervisorPinModal.tsx`, validated against a mock
+  `CashierProfile` with `role === FOH_SUPERVISOR`), which is a much closer
+  approximation of the real thing than a typed name, but still isn't
+  server-enforced. Restores counter stock via `VOID_RESTORE` movements when
+  voiding a `PAID` order. Sets `status = VOIDED` — **never deleted**,
+  matches spec exactly.
 - `POST /api/pos/orders/{id}/refund/` — see *Refunds* below; separate from
   void because a refund doesn't reverse the sale itself (the food already
   left the counter), only the money.
@@ -194,12 +201,20 @@ Read-only from the client's perspective — written only as a side effect of
 `POST /api/pos/orders/{id}/refund/`, `GET /api/pos/refunds/`
 
 Permission: **below** `REFUND_APPROVAL_THRESHOLD` (₦5,000, spec's own
-example figure — make it a Django setting) — FOH Supervisor. **Above** it —
-GM, with **dual approval** (spec 6.3.2: "Refunds above threshold: GM
-authorization with dual approval (supervisor + GM)"). The frontend already
-collects two names in that case (`authorized_by` becomes a combined string
-today, `"{supervisor} + {gm} (GM)"`) — a real implementation should record
-both approvers as separate fields/FKs, not one concatenated string.
+example figure — make it a Django setting) — FOH Supervisor PIN. **Above**
+it — GM, with **dual approval** (spec 6.3.2: "Refunds above threshold: GM
+authorization with dual approval (supervisor + GM)"). The frontend gates
+both cases behind the same `SupervisorPinModal`, but reasons that only a
+real `MANAGER` JWT login can reach `/pos/*` at all (see *Auth/permissions*
+above), so that already-authenticated session stands in for the GM half of
+"dual approval" — the supervisor PIN is the second, independent check. A
+real implementation should still record both approvers as separate
+fields/FKs (`authorized_by` becomes a combined string today, e.g.
+`"{supervisor} + Manager (GM)"`), and should decide explicitly whether
+"the Manager who happens to be logged in" is an acceptable stand-in for a
+named GM approval or whether a second real PIN/login step is required —
+this repo's frontend made the pragmatic call, but it's a real product
+decision, not just an implementation detail.
 
 | JSON field | `Refund` field | Notes |
 |---|---|---|
@@ -247,10 +262,14 @@ anyone else.
 
 ## Not built as dedicated endpoints yet
 
-- **`/pos/dashboard`** computes all its KPIs client-side from the
-  orders/payments/refunds/menu-items list responses — same "fine until real
-  data volume says otherwise" reasoning as Store's dashboard. Build a
-  dedicated aggregation endpoint only if that stops being true.
+- **`/pos/dashboard` and `/pos/reports`** both compute everything
+  client-side from the orders/payments/refunds/menu-items list responses —
+  same "fine until real data volume says otherwise" reasoning as Store's
+  dashboard/reports. Build a dedicated aggregation endpoint only if that
+  stops being true. `/pos/reports`' range picker (Today/Last 7 days/This
+  month), sales-by-item table, payment-method breakdown, refunds table, and
+  transaction log with CSV export all mirror Store Reports' established
+  pattern (`toCsv`/`downloadCsv`).
 - **Menu availability by time-of-day** (`availability` field —
   BREAKFAST/LUNCH/DINNER) is stored but **not enforced** anywhere yet,
   frontend or backend — an item tagged `BREAKFAST` is still sellable all
@@ -260,3 +279,20 @@ anyone else.
   approval are all client-validated only** — every one of these needs a
   real server-side check before this ships past prototype stage; each is
   flagged individually above so nothing gets silently assumed.
+- **A mock-specific gotcha, not a real-backend concern**: `PosContext`'s
+  mutators (`chargeOrder`, `voidOrder`, `refundOrder`) look up their target
+  order via `orders.find(...)` against the mock's in-memory React state.
+  That's safe when calls are naturally separated by a render (the normal
+  Terminal flow always has one — e.g. opening the payment modal is its own
+  render before the user clicks Confirm), but **breaks if a future feature
+  chains `createOrder` → `addLine` → one of those mutators synchronously in
+  one handler with no render in between** — React defers a functional
+  `setState` updater's execution, so the very next line still sees stale
+  state. This bit the Terminal's "Void order" (pre-payment cart void)
+  feature during this pass; it's fixed there via a dedicated
+  `voidNewOrder()` mutator that builds the whole already-voided record in
+  one synchronous step instead of chaining three public calls. A real
+  Django backend doesn't have this problem (each call is a real request-
+  response, not a same-tick JS closure) — flagged here only so nobody
+  "fixes" `voidNewOrder` back into a chain of calls without knowing why it
+  isn't one already.

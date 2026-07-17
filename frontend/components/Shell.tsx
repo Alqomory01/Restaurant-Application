@@ -104,6 +104,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   { section: "POS management", items: [
     { href: "/pos/orders", label: "Orders", icon: Receipt, roles: POS_ROLES },
     { href: "/pos/menu", label: "Menu", icon: UtensilsCrossed, roles: POS_ROLES },
+    { href: "/pos/reports", label: "Reports", icon: BarChart3, roles: POS_ROLES },
   ] },
 ];
 
@@ -133,6 +134,7 @@ const TITLES: Record<string, string> = {
   "/pos/shifts": "Shift history",
   "/pos/orders": "Orders",
   "/pos/menu": "Menu management",
+  "/pos/reports": "Reports",
 };
 
 export function Shell({ children }: { children: ReactNode }) {
