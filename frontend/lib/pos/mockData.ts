@@ -1,0 +1,163 @@
+import type { CashierProfile, MenuItem } from "./types";
+
+/** Prices/categories/recipe names below are copied exactly from
+ * `seed_kitchen_demo.py`'s real seeded recipes, so `recipeName` actually
+ * matches what "Sync from Kitchen" will see from the real
+ * `GET /api/kitchen/recipes/` and `/batches/` endpoints. */
+export const initialMenuItems: MenuItem[] = [
+  {
+    id: 1,
+    name: "Jollof Rice",
+    description: "Smoky party-style jollof, slow-cooked to order.",
+    recipeId: null,
+    recipeName: "Jollof Rice",
+    category: "Rice & Swallows",
+    emoji: "🍚",
+    sellingPrice: 2000,
+    availability: "ALL_DAY",
+    modifierGroups: [
+      { id: 1, name: "Portion size", options: [{ label: "Regular", priceDelta: 0 }, { label: "Large", priceDelta: 500 }] },
+    ],
+    combo: null,
+    active: true,
+    happyHour: null,
+    bulkDiscount: null,
+    staffMealPrice: 800,
+    counterQty: 18,
+    lowStockThreshold: 5,
+  },
+  {
+    id: 2,
+    name: "Grilled Chicken",
+    description: "Marinated quarter chicken, char-grilled.",
+    recipeId: null,
+    recipeName: "Grilled Chicken",
+    category: "Proteins",
+    emoji: "🍗",
+    sellingPrice: 3500,
+    availability: "ALL_DAY",
+    modifierGroups: [
+      { id: 2, name: "Spice level", options: [{ label: "Mild", priceDelta: 0 }, { label: "Hot", priceDelta: 0 }] },
+    ],
+    combo: null,
+    active: true,
+    happyHour: null,
+    bulkDiscount: null,
+    staffMealPrice: null,
+    counterQty: 3,
+    lowStockThreshold: 5,
+  },
+  {
+    id: 3,
+    name: "Beef Suya",
+    description: "Skewered spiced beef, grilled over open flame.",
+    recipeId: null,
+    recipeName: "Beef Suya",
+    category: "Proteins",
+    emoji: "🍢",
+    sellingPrice: 2500,
+    availability: "DINNER",
+    modifierGroups: [
+      { id: 3, name: "Skewer count", options: [{ label: "5 sticks", priceDelta: 0 }, { label: "10 sticks", priceDelta: 2200 }] },
+    ],
+    combo: null,
+    active: true,
+    happyHour: null,
+    bulkDiscount: null,
+    staffMealPrice: null,
+    counterQty: 0,
+    lowStockThreshold: 5,
+  },
+  {
+    id: 4,
+    name: "Egusi Soup",
+    description: "Ground melon seed soup with assorted meat.",
+    recipeId: null,
+    recipeName: "Egusi Soup",
+    category: "Soups & Stews",
+    emoji: "🍲",
+    sellingPrice: 2800,
+    availability: "LUNCH",
+    modifierGroups: [],
+    combo: null,
+    active: true,
+    happyHour: null,
+    bulkDiscount: null,
+    staffMealPrice: 1200,
+    counterQty: 12,
+    lowStockThreshold: 4,
+  },
+  {
+    id: 5,
+    name: "Fried Plantain",
+    description: "Sweet ripe plantain, fried to order.",
+    recipeId: null,
+    recipeName: "Fried Plantain",
+    category: "Sides",
+    emoji: "🍌",
+    sellingPrice: 800,
+    availability: "ALL_DAY",
+    modifierGroups: [],
+    combo: null,
+    active: true,
+    happyHour: null,
+    bulkDiscount: { minQty: 5, pct: 10 },
+    staffMealPrice: null,
+    counterQty: 25,
+    lowStockThreshold: 8,
+  },
+  {
+    id: 6,
+    name: "Chapman",
+    description: "House mocktail — a Nigerian classic.",
+    recipeId: null,
+    recipeName: "Chapman",
+    category: "Drinks",
+    emoji: "🍹",
+    sellingPrice: 1500,
+    availability: "ALL_DAY",
+    modifierGroups: [],
+    combo: null,
+    active: true,
+    happyHour: { startTime: "16:00", endTime: "18:00", price: 1000 },
+    bulkDiscount: null,
+    staffMealPrice: null,
+    counterQty: 40,
+    lowStockThreshold: 10,
+  },
+  {
+    id: 7,
+    name: "Jollof Combo Meal",
+    description: "Jollof Rice, Grilled Chicken, and a Chapman — bundled.",
+    recipeId: null,
+    recipeName: null,
+    category: "Combos",
+    emoji: "🍽️",
+    sellingPrice: 6200,
+    availability: "ALL_DAY",
+    modifierGroups: [],
+    combo: { itemIds: [1, 2, 6], comboPrice: 6200 },
+    active: true,
+    happyHour: null,
+    bulkDiscount: null,
+    staffMealPrice: null,
+    counterQty: 10,
+    lowStockThreshold: 3,
+  },
+];
+
+export const initialCashiers: CashierProfile[] = [
+  { id: 1, name: "Ngozi Bello", pin: "1234", role: "CASHIER", consecutiveShortageShifts: 0, flagged: false },
+  { id: 2, name: "Emeka Chukwu", pin: "5678", role: "CASHIER", consecutiveShortageShifts: 2, flagged: false },
+  { id: 3, name: "Grace Adigwe", pin: "9999", role: "FOH_SUPERVISOR", consecutiveShortageShifts: 0, flagged: false },
+];
+
+let nextId = 5000;
+export function generateId(): number {
+  nextId += 1;
+  return nextId;
+}
+
+export function generateOrderCode(year: number, sequence: number): string {
+  return `ORD-${year}-${String(sequence).padStart(4, "0")}`;
+}

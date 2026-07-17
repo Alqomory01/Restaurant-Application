@@ -23,6 +23,11 @@ import {
   PackageSearch,
   Warehouse,
   PackageCheck,
+  ShoppingCart,
+  Clock,
+  History,
+  Receipt,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +54,10 @@ interface NavItem {
 // see supplier pricing — same "hide outright" reasoning as the Store section.
 const KITCHEN_ROLES: Role[] = ["HEAD_CHEF", "KITCHEN_STAFF", "MANAGER"];
 const STORE_ROLES: Role[] = ["MANAGER", "STORE_KEEPER"];
+// POS's real spec roles (Cashier, FOH Supervisor) don't exist as Django
+// roles yet — Manager stands in, same as it did for Store before
+// STORE_KEEPER existed. See components/PosAccessGate.tsx.
+const POS_ROLES: Role[] = ["MANAGER"];
 
 const NAV: { section: string; items: NavItem[] }[] = [
   { section: "Overview", items: [
@@ -86,6 +95,16 @@ const NAV: { section: string; items: NavItem[] }[] = [
   { section: "Store insights", items: [
     { href: "/store/reports", label: "Reports", icon: BarChart3, roles: STORE_ROLES },
   ] },
+  { section: "Point of Sale", items: [
+    { href: "/pos/dashboard", label: "POS dashboard", icon: LayoutDashboard, roles: POS_ROLES },
+    { href: "/pos/terminal", label: "Terminal", icon: ShoppingCart, roles: POS_ROLES },
+    { href: "/pos/shift", label: "Shift", icon: Clock, roles: POS_ROLES },
+    { href: "/pos/shifts", label: "Shift history", icon: History, roles: POS_ROLES },
+  ] },
+  { section: "POS management", items: [
+    { href: "/pos/orders", label: "Orders", icon: Receipt, roles: POS_ROLES },
+    { href: "/pos/menu", label: "Menu", icon: UtensilsCrossed, roles: POS_ROLES },
+  ] },
 ];
 
 const TITLES: Record<string, string> = {
@@ -108,6 +127,12 @@ const TITLES: Record<string, string> = {
   "/store/dispatch": "Dispatch",
   "/store/wastage": "Wastage log",
   "/store/reports": "Reports",
+  "/pos/dashboard": "POS dashboard",
+  "/pos/terminal": "Terminal",
+  "/pos/shift": "Shift",
+  "/pos/shifts": "Shift history",
+  "/pos/orders": "Orders",
+  "/pos/menu": "Menu management",
 };
 
 export function Shell({ children }: { children: ReactNode }) {
